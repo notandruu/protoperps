@@ -2,7 +2,7 @@
 
 Synthetic perpetual futures on private company valuations — trade long/short exposure to SpaceX, OpenAI, Anthropic, and more on Solana.
 
-**Live app:** protoperps.vercel.app
+**Live app:** protoperps.vercel.app / protoperps.xyz
 
 ---
 
