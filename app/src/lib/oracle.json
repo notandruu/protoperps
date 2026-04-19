@@ -1,0 +1,530 @@
+{
+  "address": "Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ",
+  "metadata": {
+    "name": "oracle",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Oracle program for protoperps — prestocks-derived price feeds"
+  },
+  "instructions": [
+    {
+      "name": "admin_pause",
+      "docs": [
+        "Manually pause a feed. Only the authority may call this.",
+        "To resume, the authority simply calls update_price (which resets status to Active)."
+      ],
+      "discriminator": [
+        13,
+        109,
+        240,
+        129,
+        86,
+        245,
+        182,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Must match the authority stored in the OraclePrice account."
+          ],
+          "signer": true
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_feed",
+      "docs": [
+        "Create an OraclePrice PDA for a given protoperps market.",
+        "Callable once per market by the keeper that will own the feed."
+      ],
+      "discriminator": [
+        167,
+        251,
+        140,
+        58,
+        66,
+        138,
+        187,
+        95
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Keeper wallet that will be the sole authorized updater for this feed."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "market",
+          "docs": [
+            "The protoperps Market account this feed serves.",
+            "Only the key is used — no data is read."
+          ]
+        },
+        {
+          "name": "oracle",
+          "docs": [
+            "Oracle price feed account — one per market.",
+            "PDA seeds: [\"oracle\", market.key()]"
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "InitializeFeedParams"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "update_price",
+      "docs": [
+        "Push a new price to the feed.",
+        "Rejects if: caller ≠ authority, price = 0, or |Δprice| > 10%.",
+        "Always sets status = Active on success (feed is freshly updated)."
+      ],
+      "discriminator": [
+        61,
+        34,
+        117,
+        155,
+        75,
+        34,
+        123,
+        208
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "docs": [
+            "Must match the authority stored in the OraclePrice account."
+          ],
+          "signer": true
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "oracle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  97,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "params",
+          "type": {
+            "defined": {
+              "name": "UpdatePriceParams"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "OraclePrice",
+      "discriminator": [
+        71,
+        166,
+        229,
+        21,
+        54,
+        247,
+        8,
+        34
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "FeedInitialized",
+      "discriminator": [
+        112,
+        111,
+        89,
+        0,
+        44,
+        197,
+        88,
+        78
+      ]
+    },
+    {
+      "name": "FeedPaused",
+      "discriminator": [
+        21,
+        152,
+        60,
+        4,
+        186,
+        167,
+        237,
+        27
+      ]
+    },
+    {
+      "name": "PriceUpdated",
+      "discriminator": [
+        154,
+        72,
+        87,
+        150,
+        246,
+        230,
+        23,
+        217
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "UnauthorizedKeeper",
+      "msg": "caller is not the authorized keeper for this feed"
+    },
+    {
+      "code": 6001,
+      "name": "PriceDeviationTooLarge",
+      "msg": "price update rejected: deviation exceeds 10% from previous price"
+    },
+    {
+      "code": 6002,
+      "name": "ZeroPrice",
+      "msg": "price must be greater than zero"
+    }
+  ],
+  "types": [
+    {
+      "name": "FeedInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "initial_price",
+            "type": "u64"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "OracleSource as u8."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FeedPaused",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeFeedParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "initial_price",
+            "docs": [
+              "Starting price in PRICE_PRECISION units. Must be > 0."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "confidence",
+            "docs": [
+              "Initial confidence interval (half-spread), same units as price."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "OracleSource as u8: 0 = DEXPool, 1 = SecondaryMarket, 2 = FundingRound."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OraclePrice",
+      "serialization": "bytemuck",
+      "repr": {
+        "kind": "c"
+      },
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "OracleSource as u8 — use source() accessor to get the typed enum."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "OracleStatus as u8 — use status() accessor to get the typed enum."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "_pad0",
+            "type": {
+              "array": [
+                "u8",
+                5
+              ]
+            }
+          },
+          {
+            "name": "authority",
+            "docs": [
+              "Keeper wallet that is authorized to push price updates to this feed."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "docs": [
+              "The protoperps Market account that this oracle feed serves."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "docs": [
+              "Current price in PRICE_PRECISION units (1e6)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "confidence",
+            "docs": [
+              "Confidence interval: half the bid/ask spread, same units as price."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "twap",
+            "docs": [
+              "Exponential moving average of price (PRICE_PRECISION), updated each push."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "previous_price",
+            "docs": [
+              "Price from the previous accepted update — used to enforce max deviation."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "twap_samples",
+            "docs": [
+              "Running count of TWAP samples included in the current EMA."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_update_slot",
+            "docs": [
+              "Slot number of the most recent accepted price update."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "last_update_timestamp",
+            "docs": [
+              "Unix timestamp (seconds) of the most recent accepted price update."
+            ],
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PriceUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "oracle",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "price",
+            "type": "u64"
+          },
+          {
+            "name": "twap",
+            "type": "u64"
+          },
+          {
+            "name": "confidence",
+            "type": "u64"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "OracleSource as u8."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "status",
+            "docs": [
+              "OracleStatus as u8 — always Active after a successful push."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UpdatePriceParams",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "docs": [
+              "New price in PRICE_PRECISION units. Must be > 0."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "confidence",
+            "docs": [
+              "Updated confidence interval (half-spread), same units as price."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "source",
+            "docs": [
+              "OracleSource as u8: 0 = DEXPool, 1 = SecondaryMarket, 2 = FundingRound."
+            ],
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
