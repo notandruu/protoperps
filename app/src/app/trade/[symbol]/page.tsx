@@ -13,11 +13,15 @@ import { formatPrice, formatFundingRate } from '@/lib/math';
 import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
 
 function StatusBadge({ status }: { status: number }) {
-  const label = status === 0 ? 'Active' : status === 1 ? 'Reduce Only' : 'Paused';
-  const cls = status === 0
-    ? 'bg-long/20 text-long border-long/30'
-    : status === 1
-    ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30'
+  const label =
+    status === -1 ? 'Not Deployed'
+    : status === 0 ? 'Active'
+    : status === 1 ? 'Reduce Only'
+    : 'Paused';
+  const cls =
+    status === -1 ? 'bg-surface-2 text-text-muted border-border'
+    : status === 0 ? 'bg-long/20 text-long border-long/30'
+    : status === 1 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30'
     : 'bg-short/20 text-short border-short/30';
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>

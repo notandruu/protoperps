@@ -42,9 +42,16 @@ export function useOracle(marketPubkey: PublicKey | null) {
   );
 }
 
-/** Return effective status accounting for staleness. */
+/**
+ * Return effective status accounting for staleness.
+ *   -1 = oracle account not found (market not yet initialized on-chain)
+ *    0 = Active
+ *    1 = ReduceOnly
+ *    2 = Paused (explicit admin pause or stale > 15 min)
+ */
 export function effectiveOracleStatus(oracle: OracleData | null | undefined): number {
-  if (!oracle) return 2; // Paused if not found
+  if (oracle === undefined) return -1; // still loading
+  if (oracle === null) return -1;      // account does not exist on-chain
   const nowSecs = Date.now() / 1000;
   const age = nowSecs - oracle.lastUpdateTimestamp;
   const byStale = age >= 900 ? 2 : age >= 300 ? 1 : 0;

@@ -9,7 +9,7 @@ import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
 
 function MarketRow({ symbol, name, marketPubkey }: { symbol: string; name: string; marketPubkey: import('@solana/web3.js').PublicKey }) {
   const router = useRouter();
-  const { data: oracle } = useOracle(marketPubkey);
+  const { data: oracle, isLoading: oracleLoading } = useOracle(marketPubkey);
   const { data: market } = useMarket(marketPubkey);
   const status = effectiveOracleStatus(oracle);
 
@@ -17,8 +17,20 @@ function MarketRow({ symbol, name, marketPubkey }: { symbol: string; name: strin
   const openInterest = market?.openInterest ?? 0;
   const fundingRate = market?.cumulativeFundingRate ?? 0;
 
-  const statusLabel = status === 0 ? 'Active' : status === 1 ? 'Reduce Only' : 'Paused';
-  const statusClass = status === 0 ? 'text-long' : status === 1 ? 'text-yellow-400' : 'text-short';
+  // -1 = account not found (not initialized), 0 = Active, 1 = ReduceOnly, 2 = Paused
+  const statusLabel =
+    oracleLoading ? '…'
+    : status === -1 ? 'Not Deployed'
+    : status === 0  ? 'Active'
+    : status === 1  ? 'Reduce Only'
+    : 'Paused';
+
+  const statusClass =
+    oracleLoading ? 'text-text-muted'
+    : status === -1 ? 'text-text-muted'
+    : status === 0  ? 'text-long'
+    : status === 1  ? 'text-yellow-400'
+    : 'text-short';
 
   return (
     <tr className="border-b border-border hover:bg-surface-2 transition-colors">
