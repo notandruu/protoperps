@@ -96,10 +96,9 @@ export const MARKETS: MarketConfig[] = [
     tokenMint: 'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB',
   },
   {
-    name: 'xAI',
-    symbol: 'XAI',
-    // XAI substitutes for STRIPE-PERP; update this if a Stripe prestocks token appears.
-    marketPubkey: marketPda('XAI'),
+    name: 'Polymarket',
+    symbol: 'POLMKT',
+    marketPubkey: marketPda('POLMKT'),
     tokenMint: 'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
   },
   {

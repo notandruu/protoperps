@@ -75,7 +75,7 @@ export const MARKETS: MarketConfig[] = [
   { name: 'OpenAI', symbol: 'OPENAI', marketPubkey: marketPda('OPENAI') },
   { name: 'Anthropic', symbol: 'ANTHRP', marketPubkey: marketPda('ANTHRP') },
   { name: 'Anduril', symbol: 'ANDURL', marketPubkey: marketPda('ANDURL') },
-  { name: 'xAI', symbol: 'XAI', marketPubkey: marketPda('XAI') },
+  { name: 'Polymarket', symbol: 'POLMKT', marketPubkey: marketPda('POLMKT') },
   { name: 'Neuralink', symbol: 'NRLNK', marketPubkey: marketPda('NRLNK') },
   { name: 'Kalshi', symbol: 'KALSHI', marketPubkey: marketPda('KALSHI') },
 ];
