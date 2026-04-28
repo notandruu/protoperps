@@ -2,20 +2,15 @@
 
 import { useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
-import {
-  PhantomWalletAdapter,
-  SolflareWalletAdapter,
-} from '@solana/wallet-adapter-wallets';
+import { SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { RPC_URL } from '@/lib/constants';
 
 export default function SolanaProvider({ children }: { children: React.ReactNode }) {
+  // Phantom and Backpack implement Wallet Standard and are auto-detected.
+  // Only list Solflare explicitly since it uses the legacy adapter.
   const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ],
+    () => [new SolflareWalletAdapter()],
     [],
   );
 
