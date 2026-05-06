@@ -39,7 +39,7 @@ pub(crate) use withdraw_collateral::__client_accounts_withdraw_collateral;
 
 use anchor_lang::prelude::*;
 
-declare_id!("2B3FDJu1myUaoeXuoWQ7MD8B5r1fr1BbSG4RX9GfHxDr");
+declare_id!("J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW");
 
 #[program]
 pub mod protoperps {

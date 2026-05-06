@@ -6,11 +6,15 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-protoperps = "2B3FDJu1myUaoeXuoWQ7MD8B5r1fr1BbSG4RX9GfHxDr"
-oracle = "Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ"
+protoperps = "J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW"
+oracle = "Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV"
+
+[programs.devnet]
+protoperps = "J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW"
+oracle = "Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

@@ -2,7 +2,7 @@
 const nextConfig = {
   // Required for @coral-xyz/anchor and @solana/* packages that reference
   // Node built-ins — Vercel's runtime handles them fine server-side.
-  serverExternalPackages: ['@coral-xyz/anchor', '@solana/web3.js'],
+  serverExternalPackages: ['@coral-xyz/anchor', '@solana/web3.js', '@solana/spl-token'],
 
   webpack: (config, { isServer }) => {
     if (!isServer) {
