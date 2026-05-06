@@ -52,8 +52,5 @@ export function useOracle(marketPubkey: PublicKey | null) {
 export function effectiveOracleStatus(oracle: OracleData | null | undefined): number {
   if (oracle === undefined) return -1; // still loading
   if (oracle === null) return -1;      // account does not exist on-chain
-  const nowSecs = Date.now() / 1000;
-  const age = nowSecs - oracle.lastUpdateTimestamp;
-  const byStale = age >= 900 ? 2 : age >= 300 ? 1 : 0;
-  return Math.max(oracle.status, byStale);
+  return oracle.status;
 }

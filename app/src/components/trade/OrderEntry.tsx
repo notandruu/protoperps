@@ -146,7 +146,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
     <div className="flex flex-col gap-4 p-4">
       {/* Order type tabs */}
       <div className="flex rounded-lg overflow-hidden border border-border">
-        {(['limit', 'market'] as OrderType[]).map(t => (
+        {(['limit'] as OrderType[]).map(t => (
           <button
             key={t}
             onClick={() => setOrderType(t)}
