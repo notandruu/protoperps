@@ -13,9 +13,19 @@ const FAUCET_AMOUNT_USDC = 1_000;
 const drips = new Map<string, number>();
 
 function loadMintAuthority(): Keypair {
-  const raw = process.env.FAUCET_KEYPAIR_BASE64;
-  if (!raw) throw new Error('FAUCET_KEYPAIR_BASE64 env var not set');
-  return Keypair.fromSecretKey(Buffer.from(raw, 'base64'));
+  const b64 = process.env.FAUCET_KEYPAIR_BASE64;
+  if (b64) return Keypair.fromSecretKey(Buffer.from(b64, 'base64'));
+
+  // Local fallback: read from mm-keypair.json relative to project root
+  try {
+    const fs = require('fs') as typeof import('fs');
+    const path = require('path') as typeof import('path');
+    const p = path.resolve(process.cwd(), '..', 'keeper', 'mm-keypair.json');
+    const raw = JSON.parse(fs.readFileSync(p, 'utf-8')) as number[];
+    return Keypair.fromSecretKey(Uint8Array.from(raw));
+  } catch {
+    throw new Error('FAUCET_KEYPAIR_BASE64 env var not set and mm-keypair.json not found');
+  }
 }
 
 export async function POST(req: NextRequest) {
