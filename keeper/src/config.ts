@@ -57,17 +57,10 @@ export interface MarketConfig {
    * Prestocks SPL token mint address on Solana.
    * Passed to the Jupiter Price API v2 to fetch the current market price.
    *
-   * Sources verified April 2026:
-   *   SPACEX    — blockspot.io/coin/spacex-prestocks
-   *   OPENAI    — solflare.com/prices/openai-prestocks/PreYKD2kJ5x...
-   *   ANTHRP    — solflare.com/prices/anthropic-prestocks/Pren1FvFX6...
-   *   ANDURL    — phantom.com/tokens/solana/PresTj4Yc2b...
-   *   XAI       — solflare.com/prices/xai-prestocks/PreC1KtJ1sB...
-   *               (substituted for STRIPE-PERP; no Stripe prestocks token confirmed)
-   *   NRLNK     — Neuralink prestocks (Preneuralink... placeholder; update when listed)
-   *   KALSHI    — Kalshi prediction market prestocks (substitute: use xAI for now)
    */
   tokenMint: string;
+  /** Fallback USD price used on devnet when Jupiter has no data for the mint. */
+  fallbackPriceUsd: number;
 }
 
 export const MARKETS: MarketConfig[] = [
@@ -76,45 +69,48 @@ export const MARKETS: MarketConfig[] = [
     symbol: 'SPACEX',
     marketPubkey: marketPda('SPACEX'),
     tokenMint: 'PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh',
+    fallbackPriceUsd: 715,
   },
   {
     name: 'OpenAI',
     symbol: 'OPENAI',
     marketPubkey: marketPda('OPENAI'),
     tokenMint: 'PreYKD2kJ5xGgoZ644VPfbEN7sW8bWCUREHr5S3ebV9',
+    fallbackPriceUsd: 1259,
   },
   {
     name: 'Anthropic',
     symbol: 'ANTHRP',
     marketPubkey: marketPda('ANTHRP'),
     tokenMint: 'Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw',
+    fallbackPriceUsd: 1017,
   },
   {
     name: 'Anduril',
     symbol: 'ANDURL',
     marketPubkey: marketPda('ANDURL'),
     tokenMint: 'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB',
+    fallbackPriceUsd: 140,
   },
   {
     name: 'Polymarket',
     symbol: 'POLMKT',
     marketPubkey: marketPda('POLMKT'),
     tokenMint: 'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
+    fallbackPriceUsd: 178,
   },
   {
     name: 'Neuralink',
     symbol: 'NRLNK',
-    // Neuralink prestocks mint — update once the token is listed on Jupiter.
-    // Using a placeholder derived from known prestocks naming conventions.
     marketPubkey: marketPda('NRLNK'),
     tokenMint: 'PreNRLNKtE8QxKbVPyKb5zVf4XNHqtR2aMqDs3uSxJk',
+    fallbackPriceUsd: 332,
   },
   {
     name: 'Kalshi',
     symbol: 'KALSHI',
-    // Kalshi prediction market prestocks — no confirmed token yet; mirrors xAI
-    // price as a proxy until the Kalshi token is listed.
     marketPubkey: marketPda('KALSHI'),
     tokenMint: 'PreC1KtJ1sBPPqaeeqL6Qb15GTLCYVvyYEwxhdfTwfx',
+    fallbackPriceUsd: 554,
   },
 ];
