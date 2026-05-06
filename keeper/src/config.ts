@@ -3,10 +3,10 @@ import { PublicKey } from '@solana/web3.js';
 // ── Program IDs ────────────────────────────────────────────────────────────
 
 export const PROTOPERPS_PROGRAM_ID = new PublicKey(
-  '2B3FDJu1myUaoeXuoWQ7MD8B5r1fr1BbSG4RX9GfHxDr',
+  'J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW',
 );
 export const ORACLE_PROGRAM_ID = new PublicKey(
-  'Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ',
+  'Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV',
 );
 
 // ── Price precision ────────────────────────────────────────────────────────

@@ -1,11 +1,11 @@
 import { PublicKey } from '@solana/web3.js';
 
 export const PROTOPERPS_PROGRAM_ID = new PublicKey(
-  '2B3FDJu1myUaoeXuoWQ7MD8B5r1fr1BbSG4RX9GfHxDr',
+  'J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW',
 );
 
 export const ORACLE_PROGRAM_ID = new PublicKey(
-  'Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ',
+  'Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV',
 );
 
 /** All on-chain amounts are integers scaled by this factor. $1.00 = 1_000_000. */
@@ -16,7 +16,7 @@ export const FUNDING_PRECISION = 1_000_000_000;
 
 /** Devnet USDC mint — override with NEXT_PUBLIC_USDC_MINT env var if needed. */
 export const USDC_MINT = new PublicKey(
-  process.env.NEXT_PUBLIC_USDC_MINT ?? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+  process.env.NEXT_PUBLIC_USDC_MINT ?? 'EKdgVqQVivDRiXeQfK2k2Yx1W2BZZdYJ8D1KEaouriEM',
 );
 
 export const RPC_URL =

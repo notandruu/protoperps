@@ -6,7 +6,7 @@ pub mod state;
 use anchor_lang::prelude::*;
 use instructions::*;
 
-declare_id!("Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ");
+declare_id!("Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV");
 
 // Anchor 1.0.0: the generated __client_accounts_* types must be visible
 // at the crate root for cross-program CPI consumers.

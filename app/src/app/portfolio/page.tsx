@@ -1,6 +1,7 @@
 import MarginCard from '@/components/portfolio/MarginCard';
 import DepositWithdraw from '@/components/portfolio/DepositWithdraw';
 import PositionHistory from '@/components/portfolio/PositionHistory';
+import FaucetButton from '@/components/portfolio/FaucetButton';
 
 export default function PortfolioPage() {
   return (
@@ -16,7 +17,8 @@ export default function PortfolioPage() {
         <div className="lg:col-span-2">
           <MarginCard />
         </div>
-        <div>
+        <div className="flex flex-col gap-4">
+          <FaucetButton />
           <DepositWithdraw />
         </div>
       </div>
