@@ -4,9 +4,9 @@ import { useState, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
-import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import { usePrograms } from '@/hooks/usePrograms';
-import { USDC_MINT, marginPda, vaultAuthorityPda, PROTOPERPS_PROGRAM_ID } from '@/lib/constants';
+import { USDC_MINT, marginPda, vaultAuthorityPda } from '@/lib/constants';
 import { PRICE_PRECISION } from '@/lib/constants';
 
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
@@ -17,7 +17,7 @@ type Tab = 'deposit' | 'withdraw';
 
 export default function DepositWithdraw() {
   const { publicKey } = useWallet();
-  const { program } = usePrograms();
+  const { program, connection } = usePrograms();
   const [tab, setTab] = useState<Tab>('deposit');
   const [amount, setAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -39,6 +39,20 @@ export default function DepositWithdraw() {
       const vaultAuth = vaultAuthorityPda();
       const vault = getAssociatedTokenAddressSync(USDC_MINT, vaultAuth, true);
 
+      // Create the user's USDC ATA if it doesn't exist yet
+      const preInstructions = [];
+      const ataInfo = await connection.getAccountInfo(userUsdc);
+      if (!ataInfo) {
+        preInstructions.push(
+          createAssociatedTokenAccountInstruction(
+            publicKey,
+            userUsdc,
+            publicKey,
+            USDC_MINT,
+          ),
+        );
+      }
+
       let sig: string;
       if (tab === 'deposit') {
         sig = await program.methods
@@ -55,6 +69,7 @@ export default function DepositWithdraw() {
             systemProgram: SYSTEM_PROGRAM_ID,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } as any)
+          .preInstructions(preInstructions)
           .rpc();
       } else {
         sig = await program.methods

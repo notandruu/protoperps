@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 import { runOracleKeeper } from './oracle';
 import { runFundingKeeper } from './funding';
 import { runLiquidatorKeeper } from './liquidator';
+import { runMarketMaker } from './marketmaker';
 
 dotenv.config();
 
@@ -16,6 +17,10 @@ Promise.all([
   }),
   runLiquidatorKeeper().catch(err => {
     console.error('[liquidator keeper] fatal error:', err);
+    process.exit(1);
+  }),
+  runMarketMaker().catch(err => {
+    console.error('[market maker] fatal error:', err);
     process.exit(1);
   }),
 ]);
