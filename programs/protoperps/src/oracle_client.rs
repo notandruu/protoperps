@@ -13,7 +13,7 @@ use bytemuck::{Pod, Zeroable};
 
 /// ID of the oracle program.  Must match oracle/src/lib.rs declare_id!.
 pub const ORACLE_PROGRAM_ID: Pubkey =
-    pubkey!("Av4fWEvzFmn1NatYWbQw5HnWKesUfsnKDqwkhau4v7KQ");
+    pubkey!("Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV");
 
 // ── Staleness thresholds (mirrors oracle_price.rs constants) ───────────────
 
