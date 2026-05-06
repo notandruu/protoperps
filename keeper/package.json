@@ -6,8 +6,8 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "start": "ts-node src/index.ts",
-    "dev": "ts-node --watch src/index.ts"
+    "start": "ts-node -r dotenv/config src/index.ts",
+    "dev": "ts-node -r dotenv/config --watch src/index.ts"
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.0",

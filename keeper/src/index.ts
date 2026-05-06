@@ -1,10 +1,7 @@
-import * as dotenv from 'dotenv';
 import { runOracleKeeper } from './oracle';
 import { runFundingKeeper } from './funding';
 import { runLiquidatorKeeper } from './liquidator';
 import { runMarketMaker } from './marketmaker';
-
-dotenv.config();
 
 Promise.all([
   runOracleKeeper().catch(err => {

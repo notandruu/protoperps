@@ -163,8 +163,9 @@ async function updateFunding(
 
   const oracle = oraclePda(market.marketPubkey);
 
-  const sig = await withBackoff(`update_funding:${market.name}`, async () => {
-    return program.methods
+  let sig: string;
+  try {
+    sig = await program.methods
       .updateFunding({ markPrice })
       .accounts({
         caller: authority.publicKey,
@@ -173,7 +174,14 @@ async function updateFunding(
       } as never)
       .signers([authority])
       .rpc();
-  });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('InstructionFallbackNotFound')) {
+      console.warn(`[funding/${market.name}] instruction not available on deployed program — skipping`);
+      return;
+    }
+    throw err;
+  }
 
   const priceUsd = markPrice.toNumber() / PRICE_PRECISION;
   console.log(

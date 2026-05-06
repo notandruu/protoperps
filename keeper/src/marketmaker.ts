@@ -34,7 +34,9 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const USDC_MINT = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+const USDC_MINT = new PublicKey(
+  process.env.USDC_MINT ?? '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+);
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
@@ -202,26 +204,42 @@ async function ensureUsdc(
 
   const threshold = INITIAL_DEPOSIT_USDC * PRICE_PRECISION * 0.5;
   if (freeMargin < threshold) {
-    const amount = new BN(INITIAL_DEPOSIT_USDC * PRICE_PRECISION);
+    // Cap deposit at actual ATA balance to avoid insufficient-funds errors.
+    const ataBalance = ataInfo
+      ? await connection.getTokenAccountBalance(userUsdc).then(r => r.value.amount).catch(() => '0')
+      : '0';
+    const availableRaw = parseInt(ataBalance, 10);
+    const depositRaw = Math.min(INITIAL_DEPOSIT_USDC * PRICE_PRECISION, availableRaw);
+    if (depositRaw <= 0) {
+      console.warn('[mm] ATA has no USDC to deposit — running with existing margin');
+      return;
+    }
+    const amount = new BN(depositRaw);
     const vaultAuth = vaultAuthorityPda();
     const vault = getAssociatedTokenAddressSync(USDC_MINT, vaultAuth, true);
-    console.log(`[mm] depositing ${INITIAL_DEPOSIT_USDC} USDC…`);
-    await program.methods
-      .depositCollateral(amount)
-      .accounts({
-        owner: bot.publicKey,
-        marginAccount: marginAcct,
-        userUsdc,
-        vaultAuthority: vaultAuth,
-        vault,
-        usdcMint: USDC_MINT,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: SYSTEM_PROGRAM_ID,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
-      .rpc();
-    console.log(`[mm] deposited ${INITIAL_DEPOSIT_USDC} USDC`);
+    const depositUsdc = (depositRaw / PRICE_PRECISION).toFixed(2);
+    console.log(`[mm] depositing ${depositUsdc} USDC…`);
+    try {
+      await program.methods
+        .depositCollateral(amount)
+        .accounts({
+          owner: bot.publicKey,
+          marginAccount: marginAcct,
+          userUsdc,
+          vaultAuthority: vaultAuth,
+          vault,
+          usdcMint: USDC_MINT,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SYSTEM_PROGRAM_ID,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any)
+        .rpc();
+      console.log(`[mm] deposited ${depositUsdc} USDC`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[mm] deposit failed (${msg.slice(0, 80)}) — continuing with existing margin`);
+    }
   } else {
     console.log(`[mm] free margin: $${(freeMargin / PRICE_PRECISION).toFixed(2)}`);
   }
