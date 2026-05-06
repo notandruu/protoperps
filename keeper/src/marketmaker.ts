@@ -169,6 +169,10 @@ function makeWallet(keypair: Keypair) {
   };
 }
 
+// ── Last-quoted price per market (to skip unnecessary re-quotes) ───────────
+const lastQuotedPrice = new Map<string, number>();
+const REQUOTE_THRESHOLD = 0.001; // only requote if price moved > 0.1%
+
 // ── Core bot logic ──────────────────────────────────────────────────────────
 
 async function ensureUsdc(
@@ -340,8 +344,14 @@ async function tick(
         console.log(`[mm] no oracle price for ${market.name}, skipping`);
         continue;
       }
+      const last = lastQuotedPrice.get(market.name) ?? 0;
+      const moved = last === 0 ? 1 : Math.abs(markPrice - last) / last;
+      if (moved < REQUOTE_THRESHOLD) {
+        continue; // price stable — leave existing quotes in place
+      }
       await cancelBotOrders(connection, program, bot, market);
       await quoteBothSides(program, bot, market, markPrice);
+      lastQuotedPrice.set(market.name, markPrice);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[mm] tick error (${market.name}): ${msg.slice(0, 120)}`);
