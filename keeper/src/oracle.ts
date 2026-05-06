@@ -170,8 +170,7 @@ async function tick(program: Program, authority: Keypair): Promise<void> {
         // Jupiter has no data for this mint (common on devnet). Use the fallback
         // price with small random jitter so the oracle stays fresh and markets
         // don't enter reduce-only mode.
-        const jitter = 1 + (Math.random() - 0.5) * 0.01;
-        price = market.fallbackPriceUsd * jitter;
+        price = market.fallbackPriceUsd;
         console.log(`[oracle/${market.name}] Jupiter unavailable → fallback $${price.toFixed(2)}`);
       }
 
