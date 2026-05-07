@@ -132,6 +132,7 @@ export default function TradePage() {
             marketPubkey={market.marketPubkey}
             position={position}
             markPrice={markPrice}
+            marketData={marketData}
             onClose={() => {
               refreshPosition();
               refreshMarket();

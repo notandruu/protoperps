@@ -10,7 +10,6 @@ import {
   positionPda,
   marginPda,
   oraclePda,
-  PROTOPERPS_PROGRAM_ID,
 } from '@/lib/constants';
 import {
   formatPrice,
@@ -20,12 +19,14 @@ import {
   calcUnrealizedPnl,
   calcLiquidationPrice,
 } from '@/lib/math';
-import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
+import { LOT_PRECISION } from '@/lib/constants';
+import { MarketData } from '@/hooks/useMarket';
 
 interface PositionsTableProps {
   marketPubkey: PublicKey;
   position: PositionData | null | undefined;
   markPrice: number;
+  marketData?: MarketData | null;
   onClose?: () => void;
 }
 
@@ -33,14 +34,16 @@ export default function PositionsTable({
   marketPubkey,
   position,
   markPrice,
+  marketData,
   onClose,
 }: PositionsTableProps) {
   const { publicKey } = useWallet();
   const { program } = usePrograms();
   const [closing, setClosing] = useState(false);
+  const [closeSize, setCloseSize] = useState('');
   const [error, setError] = useState('');
 
-  const handleClose = useCallback(async () => {
+  const handleClose = useCallback(async (partial?: number) => {
     if (!publicKey || !program || !position) return;
     setError('');
     setClosing(true);
@@ -50,14 +53,37 @@ export default function PositionsTable({
       const traderMarginPda = marginPda(publicKey);
       const posPda = positionPda(marketPubkey, publicKey);
 
-      // Close position by placing a market order on the opposite side
       const sideParam = position.side === 'long' ? { short: {} } : { long: {} };
+      // Use aggressive price to guarantee fill against MM's resting quotes
       const price = new BN(
         position.side === 'long'
-          ? Math.round(markPrice * 0.99) // sell below mark
-          : Math.round(markPrice * 1.01), // buy above mark
+          ? Math.round(markPrice * 0.97) // sell 3% below mark
+          : Math.round(markPrice * 1.03), // buy 3% above mark
       );
-      const size = new BN(position.size);
+      const rawSize = partial ?? position.size;
+      const size = new BN(rawSize);
+
+      // Build remaining accounts from the opposing side of the orderbook.
+      // Long close (short order) matches against bids; short close (long order) matches against asks.
+      const opposingOrders = position.side === 'long'
+        ? (marketData?.bids ?? [])
+        : (marketData?.asks ?? []);
+
+      // Deduplicate makers and compute their Position PDAs (max 5 fills).
+      const seen = new Set<string>();
+      const makerAccounts: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[] = [];
+      for (const order of opposingOrders) {
+        if (makerAccounts.length >= 5) break;
+        const traderKey = order.trader instanceof PublicKey ? order.trader : new PublicKey(order.trader);
+        const key = traderKey.toBase58();
+        if (seen.has(key) || key === publicKey.toBase58()) continue;
+        seen.add(key);
+        makerAccounts.push({
+          pubkey: positionPda(marketPubkey, traderKey),
+          isSigner: false,
+          isWritable: true,
+        });
+      }
 
       await program.methods
         .placeOrder({
@@ -75,16 +101,18 @@ export default function PositionsTable({
           oracleFeed: oracle,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
+        .remainingAccounts(makerAccounts)
         .rpc();
 
+      setCloseSize('');
       onClose?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setError(msg.slice(0, 120));
+      setError(msg.slice(0, 200));
     } finally {
       setClosing(false);
     }
-  }, [publicKey, program, position, markPrice, marketPubkey, onClose]);
+  }, [publicKey, program, position, markPrice, marketPubkey, marketData, onClose]);
 
   if (!publicKey) {
     return (
@@ -163,19 +191,46 @@ export default function PositionsTable({
             </td>
             <td className="px-4 py-3 text-right">
               <button
-                onClick={handleClose}
+                onClick={() => handleClose()}
                 disabled={closing}
                 className="px-3 py-1 rounded text-xs font-medium bg-short/10 text-short border border-short/30 hover:bg-short/20 transition-colors disabled:opacity-40"
               >
-                {closing ? 'Closing…' : 'Close'}
+                {closing ? 'Closing…' : 'Close All'}
               </button>
             </td>
           </tr>
         </tbody>
       </table>
 
+      {/* Partial close row */}
+      <div className="flex items-center gap-2 px-4 py-2 border-t border-border">
+        <span className="text-xs text-text-muted whitespace-nowrap">Partial close:</span>
+        <input
+          type="number"
+          min="0"
+          step="0.001"
+          placeholder={`max ${formatSize(position.size)}`}
+          value={closeSize}
+          onChange={e => setCloseSize(e.target.value)}
+          className="w-36 px-2 py-1 rounded text-xs font-mono bg-surface-2 border border-border text-white placeholder-text-muted focus:outline-none focus:border-accent"
+        />
+        <button
+          onClick={() => {
+            const parsed = parseFloat(closeSize);
+            if (!parsed || parsed <= 0) return;
+            const rawLots = Math.round(parsed * LOT_PRECISION);
+            const capped = Math.min(rawLots, position.size);
+            handleClose(capped);
+          }}
+          disabled={closing || !closeSize || parseFloat(closeSize) <= 0}
+          className="px-3 py-1 rounded text-xs font-medium bg-short/10 text-short border border-short/30 hover:bg-short/20 transition-colors disabled:opacity-40"
+        >
+          {closing ? 'Closing…' : 'Close'}
+        </button>
+      </div>
+
       {error && (
-        <div className="mx-4 mt-2 text-xs text-short bg-short/10 border border-short/30 rounded px-3 py-2">
+        <div className="mx-4 mt-2 mb-2 text-xs text-short bg-short/10 border border-short/30 rounded px-3 py-2">
           {error}
         </div>
       )}
