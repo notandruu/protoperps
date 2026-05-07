@@ -81,6 +81,41 @@ async function withBackoff<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// ── Synthetic price simulation (devnet fallback) ───────────────────────────
+//
+// When Jupiter has no data (always on devnet), we run a geometric Brownian
+// motion random walk so mark prices actually move and PnL changes in real time.
+//
+// Parameters:
+//   σ = 0.5% per tick  →  noticeable PnL movement within ~3 minutes
+//   cap = ±40% of seed  →  prices stay sane for the demo
+
+const WALK_SIGMA = 0.005; // 0.5% std-dev per 30-second tick
+const WALK_CAP   = 0.40;  // clamp within ±40% of initial price
+
+// Seeded from fallbackPriceUsd in the first tick, then drifts.
+const simPrices = new Map<string, number>(); // name → current simulated price
+
+function stepSimPrice(market: { name: string; fallbackPriceUsd: number }): number {
+  const seed = market.fallbackPriceUsd;
+  const current = simPrices.get(market.name) ?? seed;
+
+  // Box-Muller transform for a standard normal sample.
+  const u1 = Math.random();
+  const u2 = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u1 === 0 ? 1e-10 : u1)) * Math.cos(2 * Math.PI * u2);
+
+  const next = current * (1 + WALK_SIGMA * z);
+
+  // Clamp to [seed * (1 - cap), seed * (1 + cap)].
+  const lo = seed * (1 - WALK_CAP);
+  const hi = seed * (1 + WALK_CAP);
+  const clamped = Math.max(lo, Math.min(hi, next));
+
+  simPrices.set(market.name, clamped);
+  return clamped;
+}
+
 // ── In-memory price buffer for TWAP ───────────────────────────────────────
 
 const BUFFER_SIZE = 30;
@@ -167,11 +202,10 @@ async function tick(program: Program, authority: Keypair): Promise<void> {
       }
 
       if (price === null) {
-        // Jupiter has no data for this mint (common on devnet). Use the fallback
-        // price with small random jitter so the oracle stays fresh and markets
-        // don't enter reduce-only mode.
-        price = market.fallbackPriceUsd;
-        console.log(`[oracle/${market.name}] Jupiter unavailable → fallback $${price.toFixed(2)}`);
+        // Jupiter has no data (devnet). Advance the synthetic random walk so
+        // prices drift over time, PnL moves, and the demo feels live.
+        price = stepSimPrice(market);
+        console.log(`[oracle/${market.name}] Jupiter unavailable → sim $${price.toFixed(2)}`);
       }
 
       // 2. Record in buffer before updating the feed so TWAP includes this sample.
