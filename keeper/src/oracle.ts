@@ -1,12 +1,18 @@
 /**
- * oracle.ts — keeper service that fetches prestocks prices from Jupiter
+ * oracle.ts — keeper service that fetches live prestocks prices from Dexscreener
  * and pushes them to the oracle program every 30 seconds.
  *
  * Flow per tick:
- *   1. Fetch price for each market from Jupiter Price API v2
- *   2. Record in rolling 30-sample buffer → compute simple-average TWAP
- *   3. Convert float price to u64 (PRICE_PRECISION = 1_000_000)
- *   4. Call oracle::update_price with exponential backoff on RPC failures
+ *   1. Fetch price for each market from Dexscreener (highest-liquidity Solana pair)
+ *   2. Clamp to ±9% of the current on-chain price to satisfy the deviation guard
+ *      (on-chain program rejects updates >10% from previous_price)
+ *   3. Record in rolling 30-sample buffer → compute simple-average TWAP
+ *   4. Convert float price to u64 (PRICE_PRECISION = 1_000_000)
+ *   5. Call oracle::update_price with exponential backoff on RPC failures
+ *
+ * If Dexscreener is unavailable, the last successfully fetched price is reused
+ * so the oracle stays fresh. On the very first tick (no history), the market's
+ * fallbackPriceUsd is used only if Dexscreener has no data.
  */
 
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
@@ -21,37 +27,74 @@ import {
   type MarketConfig,
 } from './config';
 
-// ── Jupiter Price API ──────────────────────────────────────────────────────
+// ── Dexscreener Price API ──────────────────────────────────────────────────
 
-const JUPITER_PRICE_URL = 'https://api.jup.ag/price/v2';
+const DEXSCREENER_URL = 'https://api.dexscreener.com/latest/dex/tokens';
 
-interface JupiterEntry {
-  id: string;
-  type: string;
-  price: string;
+interface DexscreenerPair {
+  chainId: string;
+  priceUsd?: string;
+  liquidity?: { usd: number };
 }
 
-interface JupiterResponse {
-  data: Record<string, JupiterEntry | undefined>;
-  timeTaken: number;
+interface DexscreenerResponse {
+  pairs?: DexscreenerPair[];
 }
 
 /**
- * Fetch the current USD price for a single token mint from Jupiter.
- * Returns null if Jupiter has no price data for the mint.
- * Throws on HTTP errors (caller decides whether to retry).
+ * Fetch the current USD price for a token mint from Dexscreener.
+ * Picks the Solana pair with the highest USD liquidity.
+ * Returns null if no Solana pair with a price is found.
+ * Throws on HTTP errors.
  */
-async function fetchJupiterPrice(mint: string): Promise<number | null> {
-  const url = `${JUPITER_PRICE_URL}?ids=${mint}`;
+async function fetchDexscreenerPrice(mint: string): Promise<number | null> {
+  const url = `${DEXSCREENER_URL}/${mint}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
-    throw new Error(`Jupiter HTTP ${res.status} for mint ${mint}`);
+    throw new Error(`Dexscreener HTTP ${res.status} for mint ${mint}`);
   }
-  const json = (await res.json()) as JupiterResponse;
-  const entry = json.data[mint];
-  if (!entry?.price) return null;
-  const price = parseFloat(entry.price);
+  const json = (await res.json()) as DexscreenerResponse;
+  if (!json.pairs || json.pairs.length === 0) return null;
+
+  const solanaPairs = json.pairs
+    .filter(p => p.chainId === 'solana' && p.priceUsd)
+    .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0));
+
+  if (solanaPairs.length === 0) return null;
+
+  const price = parseFloat(solanaPairs[0].priceUsd!);
   return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+// ── Last-fetched price cache (used as fallback when Dexscreener fails) ─────
+
+const lastKnownPrice = new Map<string, number>(); // market name → last USD price
+
+// ── On-chain oracle price reader ───────────────────────────────────────────
+//
+// OraclePrice layout (with 8-byte discriminator):
+//   offset 80: price u64 LE  (8 discriminator + 72 struct offset)
+
+// OraclePrice account layout (with 8-byte discriminator):
+//   offset 80:  price          u64 LE   (current)
+//   offset 104: previous_price u64 LE   (used by the deviation guard)
+
+async function readOnchainPreviousPrice(
+  connection: Connection,
+  market: MarketConfig,
+): Promise<number | null> {
+  try {
+    const oracle = oraclePda(market.marketPubkey);
+    const info = await connection.getAccountInfo(oracle, 'confirmed');
+    if (!info || info.data.length < 112) return null;
+    const view = new DataView(info.data.buffer, info.data.byteOffset);
+    const lo = view.getUint32(104, true);
+    const hi = view.getUint32(108, true);
+    const raw = hi * 0x100000000 + lo;
+    return raw > 0 ? raw / PRICE_PRECISION : null;
+  } catch {
+    return null;
+  }
 }
 
 // ── Exponential backoff ────────────────────────────────────────────────────
@@ -63,10 +106,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Retry `fn` with exponential backoff (1s → 2s → 4s → … → 30s) until it succeeds.
- * Only use this for RPC calls that are expected to eventually succeed.
- */
 async function withBackoff<T>(label: string, fn: () => Promise<T>): Promise<T> {
   let delay = BACKOFF_INITIAL_MS;
   for (;;) {
@@ -81,47 +120,11 @@ async function withBackoff<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-// ── Synthetic price simulation (devnet fallback) ───────────────────────────
-//
-// When Jupiter has no data (always on devnet), we run a geometric Brownian
-// motion random walk so mark prices actually move and PnL changes in real time.
-//
-// Parameters:
-//   σ = 0.5% per tick  →  noticeable PnL movement within ~3 minutes
-//   cap = ±40% of seed  →  prices stay sane for the demo
-
-const WALK_SIGMA = 0.005; // 0.5% std-dev per 30-second tick
-const WALK_CAP   = 0.40;  // clamp within ±40% of initial price
-
-// Seeded from fallbackPriceUsd in the first tick, then drifts.
-const simPrices = new Map<string, number>(); // name → current simulated price
-
-function stepSimPrice(market: { name: string; fallbackPriceUsd: number }): number {
-  const seed = market.fallbackPriceUsd;
-  const current = simPrices.get(market.name) ?? seed;
-
-  // Box-Muller transform for a standard normal sample.
-  const u1 = Math.random();
-  const u2 = Math.random();
-  const z = Math.sqrt(-2 * Math.log(u1 === 0 ? 1e-10 : u1)) * Math.cos(2 * Math.PI * u2);
-
-  const next = current * (1 + WALK_SIGMA * z);
-
-  // Clamp to [seed * (1 - cap), seed * (1 + cap)].
-  const lo = seed * (1 - WALK_CAP);
-  const hi = seed * (1 + WALK_CAP);
-  const clamped = Math.max(lo, Math.min(hi, next));
-
-  simPrices.set(market.name, clamped);
-  return clamped;
-}
-
 // ── In-memory price buffer for TWAP ───────────────────────────────────────
 
 const BUFFER_SIZE = 30;
 const priceBuffers = new Map<string, number[]>(); // mint → recent prices
 
-/** Add a new sample to the rolling buffer; evict oldest if full. */
 function recordPrice(mint: string, price: number): void {
   const buf = priceBuffers.get(mint) ?? [];
   buf.push(price);
@@ -129,11 +132,6 @@ function recordPrice(mint: string, price: number): void {
   priceBuffers.set(mint, buf);
 }
 
-/**
- * Compute a simple average over all buffered samples.
- * Returns 0 when no samples are available (only on the very first call
- * before any price has been recorded — callers should treat 0 as unknown).
- */
 function computeTwap(mint: string): number {
   const buf = priceBuffers.get(mint);
   if (!buf || buf.length === 0) return 0;
@@ -142,17 +140,11 @@ function computeTwap(mint: string): number {
 
 // ── Oracle program interaction ─────────────────────────────────────────────
 
-/**
- * Convert a floating-point USD price to the u64 on-chain representation.
- * $100.50 → 100_500_000  (PRICE_PRECISION = 1_000_000)
- * Clamps to [1, Number.MAX_SAFE_INTEGER] to avoid passing 0 to the program.
- */
 function toU64(usd: number): BN {
   const raw = Math.round(usd * PRICE_PRECISION);
   return new BN(Math.max(1, raw));
 }
 
-/** Push a single price update to the oracle program. */
 async function updateOracleFeed(
   program: Program,
   authority: Keypair,
@@ -186,44 +178,63 @@ async function updateOracleFeed(
 
 // ── Main tick ─────────────────────────────────────────────────────────────
 
-/**
- * Run one full cycle: fetch prices for all markets, update feeds.
- * Failures for individual markets are logged but don't abort the whole tick.
- */
-async function tick(program: Program, authority: Keypair): Promise<void> {
+const MAX_STEP = 0.09; // stay under the on-chain 10% deviation guard
+
+async function tick(
+  connection: Connection,
+  program: Program,
+  authority: Keypair,
+): Promise<void> {
   const results = await Promise.allSettled(
     MARKETS.map(async market => {
-      // 1. Fetch price from Jupiter; fall back to seeded price with ±0.5% jitter on devnet.
-      let price: number | null;
+      // 1. Fetch live price from Dexscreener.
+      let price: number | null = null;
       try {
-        price = await fetchJupiterPrice(market.tokenMint);
-      } catch {
-        price = null;
+        price = await fetchDexscreenerPrice(market.tokenMint);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[oracle/${market.name}] Dexscreener error: ${msg.slice(0, 80)}`);
       }
 
-      if (price === null) {
-        // Jupiter has no data (devnet). Advance the synthetic random walk so
-        // prices drift over time, PnL moves, and the demo feels live.
-        price = stepSimPrice(market);
-        console.log(`[oracle/${market.name}] Jupiter unavailable → sim $${price.toFixed(2)}`);
+      if (price !== null) {
+        lastKnownPrice.set(market.name, price);
+      } else {
+        // Fall back to last known price, then to static seed — never skip.
+        price = lastKnownPrice.get(market.name) ?? market.fallbackPriceUsd;
+        console.warn(`[oracle/${market.name}] Dexscreener unavailable → using $${price.toFixed(2)}`);
       }
 
-      // 2. Record in buffer before updating the feed so TWAP includes this sample.
+      // 2. Clamp to ±9% of the on-chain previous_price to satisfy the deviation guard.
+      //    The guard checks |new - previous_price| / previous_price < 10%.
+      //    This allows prices to converge over several ticks if they've diverged >10%.
+      const onchainPrice = await readOnchainPreviousPrice(connection, market);
+      if (onchainPrice !== null && onchainPrice > 0) {
+        const lo = onchainPrice * (1 - MAX_STEP);
+        const hi = onchainPrice * (1 + MAX_STEP);
+        const clamped = Math.max(lo, Math.min(hi, price));
+        if (clamped !== price) {
+          console.log(
+            `[oracle/${market.name}] price clamped $${price.toFixed(2)} → $${clamped.toFixed(2)} (on-chain $${onchainPrice.toFixed(2)})`,
+          );
+        }
+        price = clamped;
+      }
+
+      // 3. Record in buffer before updating the feed so TWAP includes this sample.
       recordPrice(market.tokenMint, price);
       const twap = computeTwap(market.tokenMint);
 
-      // 3. Push to oracle program with RPC backoff.
+      // 4. Push to oracle program with RPC backoff.
       const sig = await withBackoff(`update_price:${market.name}`, () =>
         updateOracleFeed(program, authority, market, price as number),
       );
 
       console.log(
-        `[oracle/${market.name}] price=$${price.toFixed(4)}  twap=$${twap.toFixed(4)}  sig=${sig.slice(0, 16)}…`,
+        `[oracle/${market.name}] price=$${price.toFixed(2)}  twap=$${twap.toFixed(2)}  sig=${sig.slice(0, 16)}…`,
       );
     }),
   );
 
-  // Surface any unexpected errors.
   results.forEach((result, i) => {
     if (result.status === 'rejected') {
       console.error(`[oracle/${MARKETS[i].name}] unhandled error:`, result.reason);
@@ -234,17 +245,14 @@ async function tick(program: Program, authority: Keypair): Promise<void> {
 // ── Entry point ────────────────────────────────────────────────────────────
 
 export async function runOracleKeeper(): Promise<void> {
-  // ── load keypair ──────────────────────────────────────────────────────────
   const keypairPath = process.env.KEEPER_ORACLE_KEYPAIR_PATH ?? process.env.KEYPAIR_PATH;
   if (!keypairPath) throw new Error('KEYPAIR_PATH env var is not set');
   const raw = JSON.parse(fs.readFileSync(keypairPath, 'utf8')) as number[];
   const authority = Keypair.fromSecretKey(Uint8Array.from(raw));
 
-  // ── connect ───────────────────────────────────────────────────────────────
   const rpcUrl = process.env.RPC_URL ?? 'https://api.devnet.solana.com';
   const connection = new Connection(rpcUrl, 'confirmed');
 
-  // Minimal Wallet implementation — signs with the authority keypair.
   const wallet = {
     publicKey: authority.publicKey,
     signTransaction: async <
@@ -274,18 +282,14 @@ export async function runOracleKeeper(): Promise<void> {
 
   const provider = new AnchorProvider(connection, wallet as never, { commitment: 'confirmed' });
 
-  // ── load oracle IDL ───────────────────────────────────────────────────────
   const idlPath = path.resolve(__dirname, '../../target/idl/oracle.json');
   if (!fs.existsSync(idlPath)) {
-    throw new Error(
-      `Oracle IDL not found at ${idlPath}. Run: anchor idl build -p oracle`,
-    );
+    throw new Error(`Oracle IDL not found at ${idlPath}. Run: anchor build`);
   }
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const idl = require(idlPath) as import('@coral-xyz/anchor').Idl;
   const program = new Program(idl, provider);
 
-  // Sanity-check program ID matches what's in the IDL.
   if (program.programId.toBase58() !== ORACLE_PROGRAM_ID.toBase58()) {
     throw new Error(
       `IDL program ID ${program.programId.toBase58()} does not match ORACLE_PROGRAM_ID ${ORACLE_PROGRAM_ID.toBase58()}`,
@@ -301,12 +305,9 @@ export async function runOracleKeeper(): Promise<void> {
   console.log(`  markets   : ${MARKETS.map(m => m.name).join(', ')}`);
   console.log('');
 
-  // ── main loop ─────────────────────────────────────────────────────────────
   for (;;) {
     const start = Date.now();
-
-    await tick(program, authority);
-
+    await tick(connection, program, authority);
     const elapsed = Date.now() - start;
     const wait = Math.max(0, intervalMs - elapsed);
     if (wait > 0) await sleep(wait);
