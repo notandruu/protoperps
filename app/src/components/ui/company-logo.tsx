@@ -25,13 +25,13 @@ const SYMBOL_TO_INITIALS: Record<string, string> = {
 };
 
 const SYMBOL_TO_ACCENT: Record<string, string> = {
-  SPACEX: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
-  OPENAI: 'bg-teal-500/15 text-teal-400 border-teal-500/20',
-  ANTHRP: 'bg-orange-500/15 text-orange-400 border-orange-500/20',
-  ANDURL: 'bg-red-500/15 text-red-400 border-red-500/20',
-  POLMKT: 'bg-purple-500/15 text-purple-400 border-purple-500/20',
-  NRLNK:  'bg-cyan-500/15 text-cyan-400 border-cyan-500/20',
-  KALSHI: 'bg-violet-500/15 text-violet-400 border-violet-500/20',
+  SPACEX: 'bg-[#005288]/15 text-[#4d9ec4] border-[#005288]/25',
+  OPENAI: 'bg-[#10a37f]/15 text-[#10a37f] border-[#10a37f]/25',
+  ANTHRP: 'bg-[#c96442]/15 text-[#c96442] border-[#c96442]/25',
+  ANDURL: 'bg-[#f04e23]/15 text-[#f04e23] border-[#f04e23]/25',
+  POLMKT: 'bg-[#6031b6]/15 text-[#9b6ddb] border-[#6031b6]/25',
+  NRLNK:  'bg-[#00c7e6]/15 text-[#00c7e6] border-[#00c7e6]/25',
+  KALSHI: 'bg-[#05c168]/15 text-[#05c168] border-[#05c168]/25',
 };
 
 interface CompanyLogoProps {
