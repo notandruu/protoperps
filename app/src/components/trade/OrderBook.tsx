@@ -22,22 +22,22 @@ function OrderRow({
   side: 'bid' | 'ask';
 }) {
   const pct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
-  const bgColor = side === 'bid' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
-  const textColor = side === 'bid' ? 'text-long' : 'text-short';
+  const bgColor = side === 'bid' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)';
+  const textColor = side === 'bid' ? 'text-emerald-500' : 'text-red-500';
 
   return (
-    <div className="relative flex items-center px-3 py-0.5 text-xs font-mono hover:bg-surface-2 transition-colors">
+    <div className="relative flex items-center px-3 py-1 text-xs font-mono hover:bg-muted/30 transition-colors">
       <div
-        className="absolute inset-y-0 right-0"
+        className="absolute inset-y-0 right-0 pointer-events-none"
         style={{ width: `${pct}%`, background: bgColor }}
       />
       <span className={`w-1/3 ${textColor} relative`}>
         {(price / PRICE_PRECISION).toFixed(2)}
       </span>
-      <span className="w-1/3 text-center text-slate-300 relative">
+      <span className="w-1/3 text-center text-foreground relative">
         {(size / LOT_PRECISION).toFixed(4)}
       </span>
-      <span className="w-1/3 text-right text-text-muted relative">
+      <span className="w-1/3 text-right text-muted-foreground relative">
         {(total / PRICE_PRECISION).toFixed(2)}
       </span>
     </div>
@@ -45,10 +45,9 @@ function OrderRow({
 }
 
 export default function OrderBook({ market, markPrice }: OrderBookProps) {
-  const asks = market?.asks.slice().reverse() ?? []; // highest ask first for display
+  const asks = market?.asks.slice().reverse() ?? [];
   const bids = market?.bids ?? [];
 
-  // Compute cumulative sizes
   const askRows = asks.map((o, i) => ({
     price: o.price,
     size: o.size,
@@ -74,66 +73,49 @@ export default function OrderBook({ market, markPrice }: OrderBookProps) {
   const displayBids = bidRows.slice(0, 10);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-3 py-2 border-b border-border">
-        <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">Order Book</h3>
+    <div className="flex flex-col">
+      {/* Header */}
+      <div className="px-3 py-2.5 border-b border-border">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Book</h3>
       </div>
 
       {/* Column headers */}
-      <div className="flex px-3 py-1 text-xs text-text-muted font-medium border-b border-border">
+      <div className="flex px-3 py-1.5 text-xs text-muted-foreground font-semibold border-b border-border">
         <span className="w-1/3">Price</span>
         <span className="w-1/3 text-center">Size</span>
         <span className="w-1/3 text-right">Total</span>
       </div>
 
-      {/* Asks (sells) — displayed top to bottom, highest first */}
-      <div className="flex-1 overflow-hidden flex flex-col justify-end">
+      {/* Asks */}
+      <div className="flex flex-col justify-end">
         {displayAsks.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-text-muted">
-            No asks
-          </div>
+          <div className="py-4 text-center text-xs text-muted-foreground">No asks</div>
         ) : (
           displayAsks.map((row, i) => (
-            <OrderRow
-              key={i}
-              price={row.price}
-              size={row.size}
-              total={row.total}
-              maxTotal={maxTotal}
-              side="ask"
-            />
+            <OrderRow key={i} price={row.price} size={row.size} total={row.total} maxTotal={maxTotal} side="ask" />
           ))
         )}
       </div>
 
       {/* Spread / Mark price */}
-      <div className="flex items-center justify-between px-3 py-2 border-y border-border bg-surface">
-        <span className="text-sm font-mono font-bold text-white">
+      <div className="flex items-center justify-between px-3 py-2 border-y border-border bg-muted/20">
+        <span className="text-sm font-mono font-bold text-foreground">
           {markPrice > 0 ? `$${(markPrice / PRICE_PRECISION).toFixed(2)}` : '—'}
         </span>
         {spread > 0 && (
-          <span className="text-xs text-text-muted">
+          <span className="text-xs text-muted-foreground">
             Spread: ${(spread / PRICE_PRECISION).toFixed(2)} ({spreadPct.toFixed(3)}%)
           </span>
         )}
       </div>
 
-      {/* Bids (buys) */}
-      <div className="flex-1 overflow-hidden">
+      {/* Bids */}
+      <div>
         {displayBids.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-text-muted pt-4">
-            No bids
-          </div>
+          <div className="py-4 text-center text-xs text-muted-foreground">No bids</div>
         ) : (
           displayBids.map((row, i) => (
-            <OrderRow
-              key={i}
-              price={row.price}
-              size={row.size}
-              total={row.total}
-              maxTotal={maxTotal}
-              side="bid"
-            />
+            <OrderRow key={i} price={row.price} size={row.size} total={row.total} maxTotal={maxTotal} side="bid" />
           ))
         )}
       </div>

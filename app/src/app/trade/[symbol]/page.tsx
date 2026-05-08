@@ -9,32 +9,72 @@ import PriceChart from '@/components/trade/PriceChart';
 import OrderBook from '@/components/trade/OrderBook';
 import OrderEntry from '@/components/trade/OrderEntry';
 import PositionsTable from '@/components/trade/PositionsTable';
+import { ChangeBadge } from '@/components/ui/change-badge';
+import { CompanyLogo } from '@/components/ui/company-logo';
+import { cn } from '@/lib/utils';
 import { formatPrice, formatFundingRate } from '@/lib/math';
 import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
 
+const MARKET_GRAD: Record<string, string> = {
+  SPACEX: 'from-blue-500',
+  OPENAI: 'from-teal-500',
+  ANTHRP: 'from-orange-500',
+  ANDURL: 'from-red-500',
+  POLMKT: 'from-purple-500',
+  NRLNK:  'from-cyan-500',
+  KALSHI: 'from-violet-500',
+};
+
 function StatusBadge({ status }: { status: number }) {
-  const label =
-    status === -1 ? 'Not Deployed'
-    : status === 0 ? 'Active'
-    : status === 1 ? 'Reduce Only'
-    : 'Paused';
-  const cls =
-    status === -1 ? 'bg-surface-2 text-text-muted border-border'
-    : status === 0 ? 'bg-long/20 text-long border-long/30'
-    : status === 1 ? 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30'
-    : 'bg-short/20 text-short border-short/30';
-  return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${cls}`}>
-      {label}
+  if (status === 0) return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-500/15 text-emerald-500 border border-emerald-500/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Active
     </span>
+  );
+  if (status === 1) return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-yellow-500/15 text-yellow-500 border border-yellow-500/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />Reduce Only
+    </span>
+  );
+  if (status === 2) return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium bg-red-500/15 text-red-500 border border-red-500/30">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Paused
+    </span>
+  );
+  return <span className="px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground border border-border">Not Deployed</span>;
+}
+
+function Stat({ label, value, valueClass = '' }: { label: string; value: string; valueClass?: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn('text-sm font-mono font-medium mt-0.5 tabular-nums', valueClass || 'text-foreground')}>{value}</div>
+    </div>
   );
 }
 
-function StatItem({ label, value, valueClass = '' }: { label: string; value: string; valueClass?: string }) {
+// Panel with reference gradient border
+function GradPanel({ gradFrom, children, className = '' }: { gradFrom: string; children: React.ReactNode; className?: string }) {
   return (
-    <div>
-      <div className="text-xs text-text-muted">{label}</div>
-      <div className={`text-sm font-mono font-medium mt-0.5 ${valueClass || 'text-white'}`}>{value}</div>
+    <div className={cn('relative rounded-lg p-[1px] bg-border group', className)}>
+      <div
+        className={cn('absolute inset-0 rounded-lg bg-gradient-to-bl opacity-60 transition-opacity duration-500', gradFrom, 'via-transparent to-transparent')}
+        style={{
+          maskImage: 'linear-gradient(135deg, black 0%, transparent 50%)',
+          WebkitMaskImage: 'linear-gradient(135deg, black 0%, transparent 50%)',
+        }}
+      />
+      <div className="relative rounded-lg bg-card h-full">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function PanelHeader({ title }: { title: string }) {
+  return (
+    <div className="px-4 py-2.5 border-b border-border">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</span>
     </div>
   );
 }
@@ -52,93 +92,79 @@ export default function TradePage() {
   const markPrice = oracle?.price ?? 0;
   const fundingRate = marketData?.cumulativeFundingRate ?? 0;
   const openInterest = marketData?.openInterest ?? 0;
-  const openInterestUsd = openInterest > 0 && markPrice > 0
+  const oiUsd = openInterest > 0 && markPrice > 0
     ? (openInterest / LOT_PRECISION) * (markPrice / PRICE_PRECISION)
     : 0;
 
+  const gradFrom = MARKET_GRAD[symbol] ?? 'from-violet-500';
+  const fundingDir = fundingRate > 0 ? 'up' as const : fundingRate < 0 ? 'down' as const : 'flat' as const;
+
   if (!market) {
-    return (
-      <div className="flex items-center justify-center h-64 text-text-muted">
-        Market &ldquo;{symbol}&rdquo; not found.
-      </div>
-    );
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Market &ldquo;{symbol}&rdquo; not found.</div>;
   }
 
   return (
-    <div>
+    <div className="pb-8 space-y-4">
+
       {/* Market header */}
-      <div className="flex flex-wrap items-center gap-4 mb-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <CompanyLogo symbol={symbol} size={40} />
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-surface-2 border border-border flex items-center justify-center text-sm font-bold text-slate-400">
-              {symbol.slice(0, 2)}
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">{market.name}</h1>
-              <div className="text-xs text-text-muted">{symbol}-PERP</div>
-            </div>
-          </div>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">{market.name}</h1>
+          <div className="text-xs text-muted-foreground font-mono">{symbol}-PERP</div>
         </div>
-
         <StatusBadge status={oracleStatus} />
-
-        <div className="flex gap-6 ml-4">
-          <StatItem
-            label="Mark Price"
-            value={markPrice > 0 ? formatPrice(markPrice) : '—'}
-          />
-          <StatItem
-            label="Funding Rate"
+        <div className="flex gap-6 ml-2 flex-wrap">
+          <Stat label="Mark Price" value={markPrice > 0 ? formatPrice(markPrice) : '—'} />
+          <Stat
+            label="Funding / 1h"
             value={formatFundingRate(fundingRate)}
-            valueClass={fundingRate >= 0 ? 'text-long' : 'text-short'}
+            valueClass={fundingRate >= 0 ? 'text-emerald-500' : 'text-red-500'}
           />
-          <StatItem
+          <Stat
             label="Open Interest"
-            value={openInterestUsd > 0 ? `$${openInterestUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+            value={oiUsd > 0 ? `$${oiUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
           />
+        </div>
+        <div className="hidden sm:block">
+          <ChangeBadge value={fundingRate / 1e9 * 100} direction={fundingDir} suffix="% funding" />
         </div>
       </div>
 
       {/* Main grid */}
-      <div className="grid grid-cols-12 gap-4" style={{ minHeight: '600px' }}>
-        {/* Price chart — 8 cols */}
-        <div className="col-span-12 lg:col-span-8 rounded-xl border border-border bg-surface p-4" style={{ height: '380px' }}>
-          <PriceChart oracle={oracle} symbol={symbol} />
-        </div>
+      <div className="grid grid-cols-12 gap-4">
 
-        {/* Order entry — 4 cols */}
-        <div className="col-span-12 lg:col-span-4 rounded-xl border border-border bg-surface" style={{ height: '380px', overflowY: 'auto' }}>
-          <div className="px-4 pt-4 pb-2 border-b border-border">
-            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">Place Order</h3>
+        {/* Chart */}
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8" style={{ height: '380px' } as React.CSSProperties}>
+          <PanelHeader title="Price Chart" />
+          <div className="p-4" style={{ height: 'calc(100% - 41px)' }}>
+            <PriceChart oracle={oracle} symbol={symbol} />
           </div>
-          <OrderEntry
-            marketPubkey={market.marketPubkey}
-            marketData={marketData}
-            markPrice={markPrice}
-          />
-        </div>
+        </GradPanel>
 
-        {/* Orderbook — 4 cols */}
-        <div className="col-span-12 lg:col-span-4 rounded-xl border border-border bg-surface" style={{ height: '360px', overflowY: 'hidden' }}>
+        {/* Order entry */}
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4 overflow-y-auto" style={{ height: '380px' } as React.CSSProperties}>
+          <PanelHeader title="Place Order" />
+          <OrderEntry marketPubkey={market.marketPubkey} marketData={marketData} markPrice={markPrice} />
+        </GradPanel>
+
+        {/* Orderbook */}
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4">
           <OrderBook market={marketData} markPrice={markPrice} />
-        </div>
+        </GradPanel>
 
-        {/* Positions — 8 cols */}
-        <div className="col-span-12 lg:col-span-8 rounded-xl border border-border bg-surface">
-          <div className="px-4 py-3 border-b border-border">
-            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider">My Position</h3>
-          </div>
+        {/* Positions */}
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8">
+          <PanelHeader title="My Position" />
           <PositionsTable
             marketPubkey={market.marketPubkey}
             position={position}
             markPrice={markPrice}
             marketData={marketData}
-            onClose={() => {
-              refreshPosition();
-              refreshMarket();
-            }}
+            onClose={() => { refreshPosition(); refreshMarket(); }}
           />
-        </div>
+        </GradPanel>
+
       </div>
     </div>
   );

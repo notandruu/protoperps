@@ -47,7 +47,7 @@ export function formatPnl(pnl: number | bigint, decimals = 2): string {
 
 export function pnlClass(pnl: number | bigint): string {
   const n = typeof pnl === 'bigint' ? Number(pnl) : pnl;
-  return n >= 0 ? 'text-long' : 'text-short';
+  return n >= 0 ? 'text-emerald-500' : 'text-red-500';
 }
 
 /**
