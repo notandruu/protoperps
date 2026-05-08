@@ -76,20 +76,20 @@ export default function PriceChart({ oracle, symbol }: PriceChartProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col gap-2">
       {/* Header */}
-      <div className="flex items-center gap-4 px-2 pb-2">
-        <span className="text-2xl font-mono font-bold text-white">
+      <div className="flex items-center gap-4 px-2">
+        <span className="text-2xl font-mono font-bold text-foreground">
           {currentPrice > 0 ? `$${currentPrice.toFixed(2)}` : '—'}
         </span>
-        <span className={`text-sm font-mono ${isPositive ? 'text-long' : 'text-short'}`}>
+        <span className={`text-sm font-mono ${isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
           {isPositive ? '+' : ''}{priceChange.toFixed(2)} ({firstPrice > 0 ? ((priceChange / firstPrice) * 100).toFixed(2) : '0.00'}%)
         </span>
-        <span className="text-xs text-text-muted ml-auto">Live • ~30s history</span>
+        <span className="text-xs text-muted-foreground ml-auto">Live • ~30s history</span>
       </div>
 
-      {/* Chart */}
-      <div className="flex-1 min-h-0">
+      {/* Chart — fixed height avoids ResponsiveContainer feedback loop */}
+      <div style={{ height: 260 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={displayData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
             <defs>

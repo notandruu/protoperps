@@ -6,8 +6,10 @@ import { PublicKey } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
 import { usePrograms } from '@/hooks/usePrograms';
-import { USDC_MINT, marginPda, vaultAuthorityPda } from '@/lib/constants';
-import { PRICE_PRECISION } from '@/lib/constants';
+import { USDC_MINT, marginPda, vaultAuthorityPda, PRICE_PRECISION } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
 
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
@@ -26,10 +28,7 @@ export default function DepositWithdraw() {
 
   const handleSubmit = useCallback(async () => {
     if (!publicKey || !program || !amount) return;
-    setError('');
-    setTxSig('');
-    setSubmitting(true);
-
+    setError(''); setTxSig(''); setSubmitting(true);
     try {
       const rawAmount = new BN(Math.round(parseFloat(amount) * PRICE_PRECISION));
       if (rawAmount.isZero() || rawAmount.isNeg()) throw new Error('Amount must be positive');
@@ -39,151 +38,113 @@ export default function DepositWithdraw() {
       const vaultAuth = vaultAuthorityPda();
       const vault = getAssociatedTokenAddressSync(USDC_MINT, vaultAuth, true);
 
-      // Create the user's USDC ATA if it doesn't exist yet
       const preInstructions = [];
       const ataInfo = await connection.getAccountInfo(userUsdc);
       if (!ataInfo) {
-        preInstructions.push(
-          createAssociatedTokenAccountInstruction(
-            publicKey,
-            userUsdc,
-            publicKey,
-            USDC_MINT,
-          ),
-        );
+        preInstructions.push(createAssociatedTokenAccountInstruction(publicKey, userUsdc, publicKey, USDC_MINT));
       }
 
       let sig: string;
       if (tab === 'deposit') {
-        sig = await program.methods
-          .depositCollateral(rawAmount)
-          .accounts({
-            owner: publicKey,
-            marginAccount: marginAccountPda,
-            userUsdc,
-            vaultAuthority: vaultAuth,
-            vault,
-            usdcMint: USDC_MINT,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            systemProgram: SYSTEM_PROGRAM_ID,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any)
-          .preInstructions(preInstructions)
-          .rpc();
+        sig = await program.methods.depositCollateral(rawAmount)
+          .accounts({ owner: publicKey, marginAccount: marginAccountPda, userUsdc, vaultAuthority: vaultAuth, vault, usdcMint: USDC_MINT, tokenProgram: TOKEN_PROGRAM_ID, associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID, systemProgram: SYSTEM_PROGRAM_ID } as any)
+          .preInstructions(preInstructions).rpc();
       } else {
-        sig = await program.methods
-          .withdrawCollateral(rawAmount)
-          .accounts({
-            owner: publicKey,
-            marginAccount: marginAccountPda,
-            userUsdc,
-            vaultAuthority: vaultAuth,
-            vault,
-            usdcMint: USDC_MINT,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            systemProgram: SYSTEM_PROGRAM_ID,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any)
+        sig = await program.methods.withdrawCollateral(rawAmount)
+          .accounts({ owner: publicKey, marginAccount: marginAccountPda, userUsdc, vaultAuthority: vaultAuth, vault, usdcMint: USDC_MINT, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SYSTEM_PROGRAM_ID } as any)
           .rpc();
       }
-
-      setTxSig(sig);
-      setAmount('');
+      setTxSig(sig); setAmount('');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg.slice(0, 200));
+      setError((err instanceof Error ? err.message : String(err)).slice(0, 200));
     } finally {
       setSubmitting(false);
     }
-  }, [publicKey, program, tab, amount]);
+  }, [publicKey, program, tab, amount, connection]);
 
   if (!publicKey) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-6">
-        <div className="text-center text-text-muted text-sm py-4">
-          Connect wallet to deposit or withdraw
-        </div>
+      <div className="rounded-lg border border-border bg-card p-5 text-center text-muted-foreground text-sm py-8">
+        Connect wallet to deposit or withdraw
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-6">
-      <h2 className="text-sm font-medium text-text-muted uppercase tracking-wider mb-4">
-        {tab === 'deposit' ? 'Deposit' : 'Withdraw'} USDC
-      </h2>
+    <div className="relative rounded-lg p-[1px] bg-border">
+      <div
+        className="absolute inset-0 rounded-lg bg-gradient-to-bl from-violet-500 via-violet-500/20 to-transparent opacity-80"
+        style={{
+          maskImage: 'linear-gradient(135deg, black 0%, transparent 50%)',
+          WebkitMaskImage: 'linear-gradient(135deg, black 0%, transparent 50%)',
+        }}
+      />
+      <div className="relative rounded-lg bg-card p-5">
 
-      {/* Tabs */}
-      <div className="flex rounded-lg overflow-hidden border border-border mb-4">
-        {(['deposit', 'withdraw'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setError(''); setTxSig(''); }}
-            className={`flex-1 py-2 text-sm capitalize transition-colors ${
-              tab === t
-                ? 'bg-surface-2 text-white'
-                : 'text-text-muted hover:text-white'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+        {/* Tabs */}
+        <div className="flex rounded-lg overflow-hidden border border-border mb-5">
+          {(['deposit', 'withdraw'] as Tab[]).map(t => (
+            <button
+              key={t}
+              onClick={() => { setTab(t); setError(''); setTxSig(''); }}
+              className={cn(
+                'flex-1 py-2 text-sm capitalize transition-colors flex items-center justify-center gap-1.5',
+                tab === t ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {t === 'deposit'
+                ? <ArrowDownToLine className="h-3.5 w-3.5" />
+                : <ArrowUpFromLine className="h-3.5 w-3.5" />}
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Amount input */}
+        <div className="mb-4">
+          <label className="block text-xs text-muted-foreground mb-1.5">Amount (USDC)</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
+            <input
+              type="number"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              className="w-full bg-muted border border-border rounded-lg pl-7 pr-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring font-mono"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-3 text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            {error}
+          </div>
+        )}
+        {txSig && (
+          <div className="mb-3 text-xs text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+            Success!{' '}
+            <a href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="underline">
+              View tx →
+            </a>
+          </div>
+        )}
+
+        <Button
+          onClick={handleSubmit}
+          disabled={submitting || !amount || parseFloat(amount) <= 0}
+          className="w-full"
+        >
+          {submitting
+            ? (tab === 'deposit' ? 'Depositing…' : 'Withdrawing…')
+            : (tab === 'deposit' ? 'Deposit USDC' : 'Withdraw USDC')}
+        </Button>
+
+        <p className="mt-3 text-xs text-muted-foreground text-center">
+          Devnet USDC only — use the faucet above to get test funds.
+        </p>
       </div>
-
-      {/* Amount input */}
-      <div className="mb-4">
-        <label className="block text-xs text-text-muted mb-1">Amount (USDC)</label>
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
-          <input
-            type="number"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="0.00"
-            min="0"
-            step="0.01"
-            className="w-full bg-surface-2 border border-border rounded-lg pl-7 pr-3 py-2 text-sm text-white placeholder-text-muted focus:outline-none focus:border-accent"
-          />
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mb-3 text-xs text-short bg-short/10 border border-short/30 rounded-lg px-3 py-2">
-          {error}
-        </div>
-      )}
-
-      {/* Success */}
-      {txSig && (
-        <div className="mb-3 text-xs text-long bg-long/10 border border-long/30 rounded-lg px-3 py-2">
-          Success!{' '}
-          <a
-            href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            View tx
-          </a>
-        </div>
-      )}
-
-      <button
-        onClick={handleSubmit}
-        disabled={submitting || !amount || parseFloat(amount) <= 0}
-        className="w-full py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-purple-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >
-        {submitting
-          ? (tab === 'deposit' ? 'Depositing…' : 'Withdrawing…')
-          : (tab === 'deposit' ? 'Deposit' : 'Withdraw')
-        }
-      </button>
-
-      <p className="mt-3 text-xs text-text-muted text-center">
-        USDC on devnet. Make sure your wallet has devnet USDC.
-      </p>
     </div>
   );
 }
