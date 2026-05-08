@@ -16,13 +16,13 @@ import { formatPrice, formatFundingRate } from '@/lib/math';
 import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
 
 const MARKET_GRAD: Record<string, string> = {
-  SPACEX: 'from-blue-500',
-  OPENAI: 'from-teal-500',
-  ANTHRP: 'from-orange-500',
-  ANDURL: 'from-red-500',
-  POLMKT: 'from-purple-500',
-  NRLNK:  'from-cyan-500',
-  KALSHI: 'from-violet-500',
+  SPACEX: 'from-[#005288]',
+  OPENAI: 'from-[#10a37f]',
+  ANTHRP: 'from-[#c96442]',
+  ANDURL: 'from-[#f04e23]',
+  POLMKT: 'from-[#6031b6]',
+  NRLNK:  'from-[#00c7e6]',
+  KALSHI: 'from-[#05c168]',
 };
 
 function StatusBadge({ status }: { status: number }) {

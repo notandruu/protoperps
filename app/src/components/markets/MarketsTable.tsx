@@ -6,7 +6,6 @@ import { useOracle, effectiveOracleStatus } from '@/hooks/useOracle';
 import { useMarket } from '@/hooks/useMarket';
 import { formatPrice, formatFundingRate } from '@/lib/math';
 import { PRICE_PRECISION } from '@/lib/constants';
-import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SplitFlapText } from '@/components/ui/split-flap-text';
 import { DirectionIcon } from '@/components/ui/direction-icon';
@@ -18,13 +17,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // ── Per-market accent colours ────────────────────────────────────────────────
 const MARKET_GRAD: Record<string, string> = {
-  SPACEX: 'from-blue-500 via-blue-500/20 to-transparent',
-  OPENAI: 'from-teal-500 via-teal-500/20 to-transparent',
-  ANTHRP: 'from-orange-500 via-orange-500/20 to-transparent',
-  ANDURL: 'from-red-500 via-red-500/20 to-transparent',
-  POLMKT: 'from-purple-500 via-purple-500/20 to-transparent',
-  NRLNK:  'from-cyan-500 via-cyan-500/20 to-transparent',
-  KALSHI: 'from-violet-500 via-violet-500/20 to-transparent',
+  SPACEX: 'from-[#005288] via-[#005288]/20 to-transparent',
+  OPENAI: 'from-[#10a37f] via-[#10a37f]/20 to-transparent',
+  ANTHRP: 'from-[#c96442] via-[#c96442]/20 to-transparent',
+  ANDURL: 'from-[#f04e23] via-[#f04e23]/20 to-transparent',
+  POLMKT: 'from-[#6031b6] via-[#6031b6]/20 to-transparent',
+  NRLNK:  'from-[#00c7e6] via-[#00c7e6]/20 to-transparent',
+  KALSHI: 'from-[#05c168] via-[#05c168]/20 to-transparent',
 };
 
 // ── Single market row (table row) ────────────────────────────────────────────
@@ -93,12 +92,12 @@ function MarketRow({ symbol, name, marketPubkey, index }: {
       </td>
 
       {/* Funding */}
-      <td className="py-4 px-4 hidden sm:table-cell">
+      <td className="py-4 pl-8 pr-4 hidden sm:table-cell">
         <ChangeBadge value={fundingPct} direction={direction} suffix="%" />
       </td>
 
       {/* Status */}
-      <td className="py-4 px-4 hidden sm:table-cell">
+      <td className="py-4 pl-8 pr-4 hidden sm:table-cell">
         {status === 0 && (
           <span className="inline-flex items-center gap-1.5 text-sm text-emerald-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />Active
@@ -170,25 +169,21 @@ function OverviewCard({
         }}
       />
       <div className="relative rounded-lg bg-card">
-        <CardHeader className="pb-2 pt-4 px-4">
-          <CardTitle className="text-sm font-medium flex items-center gap-2 text-foreground">
-            {icon}
-            {title}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <ul className="space-y-1">
-            {rows.map(r => (
-              <li
-                key={r.label}
-                className={cn('flex items-center justify-between py-1.5 px-2 rounded-md transition-colors', rowHighlightClass)}
-              >
-                <span className="text-sm text-muted-foreground">{r.label}</span>
-                <span className="font-mono text-sm font-medium text-foreground tabular-nums">{r.value}</span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
+        <div className="flex items-center gap-2 px-4 pt-3.5 pb-2.5 border-b border-border/50">
+          {icon}
+          <span className="text-sm font-medium text-foreground">{title}</span>
+        </div>
+        <ul className="px-3 py-2">
+          {rows.map(r => (
+            <li
+              key={r.label}
+              className={cn('flex items-center justify-between py-1.5 px-2 rounded-md transition-colors', rowHighlightClass)}
+            >
+              <span className="text-sm text-muted-foreground">{r.label}</span>
+              <span className="font-mono text-sm font-medium text-foreground tabular-nums">{r.value}</span>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -197,10 +192,10 @@ function OverviewCard({
 // ── Main export ───────────────────────────────────────────────────────────────
 export default function MarketsTable() {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
 
-      {/* Watchlist table — 2/3 */}
-      <div className="lg:col-span-2 space-y-4">
+      {/* Watchlist table */}
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Watchlist</h2>
           <span className="text-xs text-muted-foreground">{MARKETS.length} markets</span>
@@ -208,7 +203,15 @@ export default function MarketsTable() {
 
         <div className="rounded-lg border border-border overflow-hidden bg-card">
           <div className="overflow-x-auto hide-scrollbar">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className="w-36" />
+                <col className="w-32" />
+                <col className="w-36" />
+                <col className="w-32 hidden sm:table-column" />
+                <col className="w-28 hidden sm:table-column" />
+                <col className="w-24" />
+              </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/30">
                   <th className="py-2 px-3 text-left">
@@ -220,10 +223,10 @@ export default function MarketsTable() {
                   <th className="py-2 px-3 text-left">
                     <span className="text-xs font-semibold text-muted-foreground">Mark Price</span>
                   </th>
-                  <th className="py-2 px-3 text-left hidden sm:table-cell">
+                  <th className="py-2 pl-8 pr-3 text-left hidden sm:table-cell">
                     <span className="text-xs font-semibold text-muted-foreground">Funding</span>
                   </th>
-                  <th className="py-2 px-3 text-left hidden sm:table-cell">
+                  <th className="py-2 pl-8 pr-3 text-left hidden sm:table-cell">
                     <span className="text-xs font-semibold text-muted-foreground">Status</span>
                   </th>
                   <th className="py-2 px-3 text-left">
@@ -249,7 +252,7 @@ export default function MarketsTable() {
         </div>
       </div>
 
-      {/* Stats sidebar — 1/3 */}
+      {/* Stats sidebar */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Overview</h2>
 

@@ -23,20 +23,20 @@ function PositionRow({ pos }: { pos: PositionData }) {
   return (
     <tr className="border-b border-border/50 hover:bg-muted/20 transition-colors">
       {/* Market */}
-      <td className="px-6 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <CompanyLogo symbol={market?.symbol ?? ''} size={28} />
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <CompanyLogo symbol={market?.symbol ?? ''} size={32} />
           <div>
             <div className="text-sm font-medium text-foreground">{market?.name ?? 'Unknown'}</div>
-            <div className="text-xs text-muted-foreground font-mono">{market?.symbol}-PERP</div>
+            <div className="text-xs text-muted-foreground font-mono mt-0.5">{market?.symbol}-PERP</div>
           </div>
         </div>
       </td>
 
       {/* Side */}
-      <td className="px-4 py-3.5">
+      <td className="px-5 py-4">
         <span className={cn(
-          'px-2 py-0.5 rounded text-xs font-medium border',
+          'px-2.5 py-1 rounded text-xs font-medium border',
           pos.side === 'long'
             ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
             : 'bg-red-500/10 text-red-500 border-red-500/20'
@@ -46,35 +46,35 @@ function PositionRow({ pos }: { pos: PositionData }) {
       </td>
 
       {/* Size */}
-      <td className="px-4 py-3.5 text-right font-mono text-sm text-foreground tabular-nums">
+      <td className="px-5 py-4 text-right font-mono text-sm text-foreground tabular-nums">
         {formatSize(pos.size)}
       </td>
 
       {/* Entry Price */}
-      <td className="px-4 py-3.5 text-right font-mono text-sm text-foreground tabular-nums">
+      <td className="px-5 py-4 text-right font-mono text-sm text-foreground tabular-nums">
         {formatPrice(pos.entryPrice)}
       </td>
 
       {/* Mark Price */}
-      <td className="px-4 py-3.5 text-right font-mono text-sm text-muted-foreground tabular-nums">
+      <td className="px-5 py-4 text-right font-mono text-sm text-muted-foreground tabular-nums">
         {markPrice > 0 ? formatPrice(markPrice) : '—'}
       </td>
 
       {/* Unrealized PnL */}
       <td className={cn(
-        'px-4 py-3.5 text-right font-mono text-sm font-medium tabular-nums',
+        'px-5 py-4 text-right font-mono text-sm font-medium tabular-nums',
         upnl === null ? 'text-muted-foreground' : pnlClass(upnl)
       )}>
         {upnl === null ? '—' : formatPnl(upnl)}
       </td>
 
       {/* Collateral */}
-      <td className="px-4 py-3.5 text-right font-mono text-sm text-muted-foreground tabular-nums">
+      <td className="px-5 py-4 text-right font-mono text-sm text-muted-foreground tabular-nums">
         {formatPrice(pos.collateral)}
       </td>
 
       {/* Action */}
-      <td className="px-4 py-3.5 text-right">
+      <td className="px-5 py-4 text-right">
         {market?.symbol && (
           <Link href={`/trade/${market.symbol}`}>
             <Button variant="outline" size="sm" className="h-7 text-xs">
@@ -135,14 +135,14 @@ export default function PositionHistory() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-6 py-2.5 text-left text-xs font-semibold text-muted-foreground">Market</th>
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Side</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Size</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Entry</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Mark</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Unrealized PnL</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">Collateral</th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground"></th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Market</th>
+                <th className="px-5 py-3 text-left text-xs font-semibold text-muted-foreground">Side</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Size</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Entry</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Mark</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Unrealized PnL</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground">Collateral</th>
+                <th className="px-5 py-3 text-right text-xs font-semibold text-muted-foreground"></th>
               </tr>
             </thead>
             <tbody>
