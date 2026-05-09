@@ -33,8 +33,8 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link href="/" className="select-none">
-          <span className="text-[1.05rem] font-semibold tracking-tight leading-none">
-            <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">proto</span><span className="text-foreground">perps</span>
+          <span className="text-[1.05rem] font-bold tracking-tight leading-none">
+            <span className="text-foreground">Proto</span><span className="text-muted-foreground font-medium">Perps</span>
           </span>
         </Link>
 
