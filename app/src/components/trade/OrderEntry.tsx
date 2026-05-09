@@ -104,8 +104,8 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const freshMkt = await (program.account as any).market.fetch(marketPubkey);
-        const numAsks: number = freshMkt.numAsks ?? 0;
-        const numBids: number = freshMkt.numBids ?? 0;
+        const numAsks: number = freshMkt.numAsks ?? freshMkt.num_asks ?? 0;
+        const numBids: number = freshMkt.numBids ?? freshMkt.num_bids ?? 0;
         const rawAsks: Record<string, unknown>[] = (freshMkt.asks ?? []).slice(0, numAsks);
         const rawBids: Record<string, unknown>[] = (freshMkt.bids ?? []).slice(0, numBids);
 

@@ -69,8 +69,9 @@ export default function PositionsTable({
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const freshMkt = await (program.account as any).market.fetch(marketPubkey);
-        const numBids: number = freshMkt.numBids ?? 0;
-        const numAsks: number = freshMkt.numAsks ?? 0;
+        // Zero-copy accounts may come back camelCase or snake_case depending on IDL version.
+        const numBids: number = freshMkt.numBids ?? freshMkt.num_bids ?? 0;
+        const numAsks: number = freshMkt.numAsks ?? freshMkt.num_asks ?? 0;
         // Closing a long → place short → match against bids.
         // Closing a short → place long → match against asks.
         const rawOrders: Record<string, unknown>[] = position.side === 'long'
@@ -99,6 +100,10 @@ export default function PositionsTable({
           seen.add(key);
           makerAccounts.push({ pubkey: positionPda(marketPubkey, traderKey), isSigner: false, isWritable: true });
         }
+      }
+
+      if (makerAccounts.length === 0) {
+        throw new Error('No liquidity in the book right now — the market maker re-quotes every 30s, please try again in a moment.');
       }
 
       await program.methods
