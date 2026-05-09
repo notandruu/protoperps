@@ -53,9 +53,9 @@ function Stat({ label, value, valueClass = '' }: { label: string; value: string;
 }
 
 // Panel with reference gradient border
-function GradPanel({ gradFrom, children, className = '' }: { gradFrom: string; children: React.ReactNode; className?: string }) {
+function GradPanel({ gradFrom, children, className = '', style }: { gradFrom: string; children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
-    <div className={cn('relative rounded-lg p-[1px] bg-border group', className)}>
+    <div className={cn('relative rounded-lg p-[1px] bg-border group', className)} style={style}>
       <div
         className={cn('absolute inset-0 rounded-lg bg-gradient-to-bl opacity-60 transition-opacity duration-500', gradFrom, 'via-transparent to-transparent')}
         style={{
