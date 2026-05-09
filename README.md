@@ -1,6 +1,6 @@
 # ProtoPerps
 
-**Synthetic perpetual futures on private company valuations — on Solana.**
+**Perpetual futures on pre IPO company valuations on Solana.**
 
 Trade long/short exposure to SpaceX, OpenAI, Anthropic, Anduril, Polymarket, Neuralink, and Kalshi without touching real shares, SPVs, or any off-chain settlement. Prices track live [Prestocks](https://prestocks.com) DEX token valuations, updated on-chain every 30 seconds by a keeper bot.
 
