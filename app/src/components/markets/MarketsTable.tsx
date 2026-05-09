@@ -254,9 +254,9 @@ export default function MarketsTable() {
           icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
           accentColor="emerald"
           rows={[
-            { label: 'Max Leverage', value: '5×' },
-            { label: 'Init Margin',  value: '20%' },
-            { label: 'Maint Margin', value: '10%' },
+            { label: 'Max Leverage', value: '50×' },
+            { label: 'Init Margin',  value: '2%' },
+            { label: 'Maint Margin', value: '1%' },
             { label: 'Liq Reward',   value: '5%' },
             { label: 'Collateral',   value: 'USDC' },
           ]}

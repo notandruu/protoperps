@@ -15,7 +15,7 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'What is ProtoPerps?',
-        a: 'ProtoPerps is a synthetic perpetual futures protocol on Solana. It lets you trade long or short exposure to private company valuations with up to 5x leverage, using USDC as collateral. No real shares change hands. Everything settles on-chain.',
+        a: 'ProtoPerps is a synthetic perpetual futures protocol on Solana. It lets you trade long or short exposure to private company valuations with up to 50x leverage, using USDC as collateral. No real shares change hands. Everything settles on-chain.',
       },
       {
         q: 'What is a perpetual future?',
@@ -31,7 +31,7 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'What is the margin model?',
-        a: 'ProtoPerps uses isolated margin. Each position carries its own USDC collateral independently. One losing trade cannot drain collateral from another position. Initial margin required is 20% of notional (5x max leverage). Maintenance margin is 10%. Falling below 10% triggers liquidation.',
+        a: 'ProtoPerps uses isolated margin. Each position carries its own USDC collateral independently. One losing trade cannot drain collateral from another position. Initial margin required is 2% of notional (50x max leverage). Maintenance margin is 1%. Falling below 1% triggers liquidation.',
       },
       {
         q: 'What is the funding rate?',
@@ -39,7 +39,7 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'What happens when I get liquidated?',
-        a: 'When your equity falls below 10% of notional, any wallet can liquidate your position. The liquidator receives 5% of your remaining collateral as a reward. The rest is returned to you. Equity is your collateral plus unrealized PnL.',
+        a: 'When your equity falls below 1% of notional, any wallet can liquidate your position. The liquidator receives 5% of your remaining collateral as a reward. The rest is returned to you. Equity is your collateral plus unrealized PnL.',
       },
       {
         q: 'What collateral is accepted?',
@@ -47,7 +47,7 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
       },
       {
         q: 'Is there a maximum order size or leverage?',
-        a: 'Maximum leverage is 5x, enforced by the 20% initial margin requirement. The orderbook holds up to 64 bids and 64 asks per market. A single transaction can fill against up to 5 makers.',
+        a: 'Maximum leverage is 50x, enforced by the 2% initial margin requirement. The orderbook holds up to 64 bids and 64 asks per market. A single transaction can fill against up to 5 makers.',
       },
     ],
   },

@@ -57,7 +57,7 @@ pub fn initialize_market(
     require!(params.tick_size > 0, ProtoperpsError::InvalidTickSize);
     require!(params.lot_size > 0, ProtoperpsError::InvalidLotSize);
     require!(
-        params.max_leverage >= 1 && params.max_leverage <= 20,
+        params.max_leverage >= 1 && params.max_leverage <= 100,
         ProtoperpsError::InvalidLeverage
     );
     require!(

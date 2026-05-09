@@ -14,7 +14,7 @@ pub use state::*;
 pub use instructions::{
     CancelOrder, CancelOrderParams, DepositCollateral, InitializeMarket, InitializeMarketParams,
     Liquidate, PlaceOrder, PlaceOrderParams, SettleFunding, UpdateFunding, UpdateFundingParams,
-    WithdrawCollateral,
+    UpdateMarketParams, UpdateMarketParamsArgs, WithdrawCollateral,
 };
 pub use instructions::cancel_order;
 pub use instructions::deposit_collateral;
@@ -23,6 +23,7 @@ pub use instructions::liquidate;
 pub use instructions::place_order;
 pub use instructions::settle_funding;
 pub use instructions::update_funding;
+pub use instructions::update_market_params;
 pub use instructions::withdraw_collateral;
 
 // Re-export __client_accounts_* modules at crate root with crate visibility.
@@ -35,6 +36,7 @@ pub(crate) use liquidate::__client_accounts_liquidate;
 pub(crate) use place_order::__client_accounts_place_order;
 pub(crate) use settle_funding::__client_accounts_settle_funding;
 pub(crate) use update_funding::__client_accounts_update_funding;
+pub(crate) use update_market_params::__client_accounts_update_market_params;
 pub(crate) use withdraw_collateral::__client_accounts_withdraw_collateral;
 
 use anchor_lang::prelude::*;
@@ -78,5 +80,12 @@ pub mod protoperps {
 
     pub fn settle_funding(ctx: Context<SettleFunding>) -> Result<()> {
         settle_funding::settle_funding(ctx)
+    }
+
+    pub fn update_market_params(
+        ctx: Context<UpdateMarketParams>,
+        args: UpdateMarketParamsArgs,
+    ) -> Result<()> {
+        update_market_params::update_market_params(ctx, args)
     }
 }

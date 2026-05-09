@@ -11,8 +11,10 @@ pub enum ProtoperpsError {
     InvalidTickSize,
     #[msg("lot size must be greater than zero")]
     InvalidLotSize,
-    #[msg("max leverage must be between 1 and 20")]
+    #[msg("max leverage must be between 1 and 100")]
     InvalidLeverage,
+    #[msg("signer is not the market authority")]
+    Unauthorized,
     #[msg("margin ratio must be greater than zero and at most 100%")]
     InvalidMarginRatio,
     #[msg("initial margin ratio must exceed maintenance margin ratio")]
