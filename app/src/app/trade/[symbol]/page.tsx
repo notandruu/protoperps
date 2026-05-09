@@ -11,8 +11,9 @@ import OrderEntry from '@/components/trade/OrderEntry';
 import PositionsTable from '@/components/trade/PositionsTable';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { cn } from '@/lib/utils';
-import { formatPrice, formatFundingRate } from '@/lib/math';
+import { formatPrice, formatFundingRate, formatCompact, formatChange } from '@/lib/math';
 import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
+import { useDexStats } from '@/hooks/useDexStats';
 
 const MARKET_GRAD: Record<string, string> = {
   SPACEX: 'from-[#005288]',
@@ -86,6 +87,7 @@ export default function TradePage() {
   const { data: oracle } = useOracle(market?.marketPubkey ?? null);
   const { data: marketData, mutate: refreshMarket } = useMarket(market?.marketPubkey ?? null);
   const { data: position, mutate: refreshPosition } = usePosition(market?.marketPubkey ?? null);
+  const { data: dex } = useDexStats(market?.tokenMint ?? null);
 
   const oracleStatus = effectiveOracleStatus(oracle);
   const markPrice = oracle?.price ?? 0;
@@ -133,6 +135,22 @@ export default function TradePage() {
           <Stat
             label="Open Interest"
             value={oiUsd > 0 ? `$${oiUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '$0'}
+          />
+          <div className="hidden sm:block h-6 w-px bg-border" />
+          <Stat
+            label="24h %"
+            value={dex ? formatChange(dex.change24h) : '—'}
+            valueClass={dex ? (dex.change24h >= 0 ? 'text-emerald-500' : 'text-red-500') : ''}
+          />
+          <div className="hidden sm:block h-6 w-px bg-border" />
+          <Stat
+            label="Volume 24h"
+            value={dex ? formatCompact(dex.volume24h) : '—'}
+          />
+          <div className="hidden sm:block h-6 w-px bg-border" />
+          <Stat
+            label="Liquidity"
+            value={dex ? formatCompact(dex.liquidity) : '—'}
           />
         </div>
       </div>

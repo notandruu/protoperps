@@ -26,6 +26,7 @@ export interface MarketConfig {
   name: string;
   symbol: string;
   marketPubkey: PublicKey;
+  tokenMint: string;
 }
 
 function marketPda(baseSymbol: string): PublicKey {
@@ -71,13 +72,13 @@ export function vaultAuthorityPda(): PublicKey {
 }
 
 export const MARKETS: MarketConfig[] = [
-  { name: 'SpaceX', symbol: 'SPACEX', marketPubkey: marketPda('SPACEX') },
-  { name: 'OpenAI', symbol: 'OPENAI', marketPubkey: marketPda('OPENAI') },
-  { name: 'Anthropic', symbol: 'ANTHRP', marketPubkey: marketPda('ANTHRP') },
-  { name: 'Anduril', symbol: 'ANDURL', marketPubkey: marketPda('ANDURL') },
-  { name: 'Polymarket', symbol: 'POLMKT', marketPubkey: marketPda('POLMKT') },
-  { name: 'Neuralink', symbol: 'NRLNK', marketPubkey: marketPda('NRLNK') },
-  { name: 'Kalshi', symbol: 'KALSHI', marketPubkey: marketPda('KALSHI') },
+  { name: 'SpaceX',     symbol: 'SPACEX', marketPubkey: marketPda('SPACEX'), tokenMint: 'PreANxuXjsy2pvisWWMNB6YaJNzr7681wJJr2rHsfTh' },
+  { name: 'OpenAI',     symbol: 'OPENAI', marketPubkey: marketPda('OPENAI'), tokenMint: 'PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF' },
+  { name: 'Anthropic',  symbol: 'ANTHRP', marketPubkey: marketPda('ANTHRP'), tokenMint: 'Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw' },
+  { name: 'Anduril',    symbol: 'ANDURL', marketPubkey: marketPda('ANDURL'), tokenMint: 'PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB' },
+  { name: 'Polymarket', symbol: 'POLMKT', marketPubkey: marketPda('POLMKT'), tokenMint: 'Pre8AREmFPtoJFT8mQSXQLh56cwJmM7CFDRuoGBZiUP' },
+  { name: 'Neuralink',  symbol: 'NRLNK',  marketPubkey: marketPda('NRLNK'),  tokenMint: 'PrekqLJvJ3qVdXmBGDiexvwUTF4rLFDa6HWS4HJbw9S' },
+  { name: 'Kalshi',     symbol: 'KALSHI', marketPubkey: marketPda('KALSHI'), tokenMint: 'PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua' },
 ];
 
 export function getMarketBySymbol(symbol: string): MarketConfig | undefined {
