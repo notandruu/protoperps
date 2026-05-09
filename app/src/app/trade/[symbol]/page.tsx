@@ -9,7 +9,6 @@ import PriceChart from '@/components/trade/PriceChart';
 import OrderBook from '@/components/trade/OrderBook';
 import OrderEntry from '@/components/trade/OrderEntry';
 import PositionsTable from '@/components/trade/PositionsTable';
-import { ChangeBadge } from '@/components/ui/change-badge';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { cn } from '@/lib/utils';
 import { formatPrice, formatFundingRate } from '@/lib/math';
@@ -97,7 +96,6 @@ export default function TradePage() {
     : 0;
 
   const gradFrom = MARKET_GRAD[symbol] ?? 'from-violet-500';
-  const fundingDir = fundingRate > 0 ? 'up' as const : fundingRate < 0 ? 'down' as const : 'flat' as const;
 
   if (!market) {
     return <div className="flex items-center justify-center h-64 text-muted-foreground">Market &ldquo;{symbol}&rdquo; not found.</div>;
@@ -107,27 +105,35 @@ export default function TradePage() {
     <div className="pb-8 space-y-4">
 
       {/* Market header */}
-      <div className="flex flex-wrap items-center gap-4">
-        <CompanyLogo symbol={symbol} size={40} />
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">{market.name}</h1>
-          <div className="text-xs text-muted-foreground font-mono">{symbol}-PERP</div>
+      <div className="flex items-center gap-4 flex-wrap">
+        {/* Identity */}
+        <div className="flex items-center gap-3">
+          <CompanyLogo symbol={symbol} size={40} />
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-foreground leading-tight">{market.name}</h1>
+            <div className="text-xs text-muted-foreground font-mono">{symbol}-PERP</div>
+          </div>
         </div>
+
         <StatusBadge status={oracleStatus} />
-        <div className="flex gap-6 ml-2 flex-wrap">
-          <Stat label="Mark Price" value={markPrice > 0 ? formatPrice(markPrice) : '—'} />
+
+        {/* Divider */}
+        <div className="hidden sm:block h-8 w-px bg-border mx-1" />
+
+        {/* Stats */}
+        <div className="flex items-center gap-6 flex-wrap">
+          <Stat label="Mark Price" value={formatPrice(markPrice)} />
+          <div className="hidden sm:block h-6 w-px bg-border" />
           <Stat
             label="Funding / 1h"
             value={formatFundingRate(fundingRate)}
-            valueClass={fundingRate >= 0 ? 'text-emerald-500' : 'text-red-500'}
+            valueClass={fundingRate > 0 ? 'text-emerald-500' : fundingRate < 0 ? 'text-red-500' : 'text-muted-foreground'}
           />
+          <div className="hidden sm:block h-6 w-px bg-border" />
           <Stat
             label="Open Interest"
-            value={oiUsd > 0 ? `$${oiUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+            value={oiUsd > 0 ? `$${oiUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '$0'}
           />
-        </div>
-        <div className="hidden sm:block">
-          <ChangeBadge value={fundingRate / 1e9 * 100} direction={fundingDir} suffix="% funding" />
         </div>
       </div>
 
@@ -135,15 +141,15 @@ export default function TradePage() {
       <div className="grid grid-cols-12 gap-4">
 
         {/* Chart */}
-        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8" style={{ height: '380px' } as React.CSSProperties}>
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8" style={{ height: '460px' } as React.CSSProperties}>
           <PanelHeader title="Price Chart" />
           <div className="p-4" style={{ height: 'calc(100% - 41px)' }}>
-            <PriceChart oracle={oracle} symbol={symbol} />
+            <PriceChart oracle={oracle} symbol={symbol} fundingRate={fundingRate} />
           </div>
         </GradPanel>
 
         {/* Order entry */}
-        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4 overflow-y-auto" style={{ height: '380px' } as React.CSSProperties}>
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4 overflow-y-auto" style={{ height: '460px' } as React.CSSProperties}>
           <PanelHeader title="Place Order" />
           <OrderEntry marketPubkey={market.marketPubkey} marketData={marketData} markPrice={markPrice} />
         </GradPanel>
