@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import WalletButton from './WalletButton';
@@ -30,17 +31,18 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 rounded-b-xl border border-t-0 border-border bg-card/90 backdrop-blur-md">
-      <div className="px-5 py-3 flex items-center justify-between">
+      <div className="px-5 py-3 grid grid-cols-3 items-center">
 
-        {/* Logo */}
-        <Link href="/" className="select-none">
+        {/* Logo — left */}
+        <Link href="/" className="select-none flex items-center gap-2 justify-self-start">
+          <Image src="/logo.png" alt="ProtoPerps" width={26} height={26} />
           <span className="text-[1.05rem] font-bold tracking-tight leading-none">
             <span className="text-foreground">Proto</span><span className="text-muted-foreground font-medium">Perps</span>
           </span>
         </Link>
 
-        {/* Nav links */}
-        <nav className="flex items-center gap-1">
+        {/* Nav links — truly centered */}
+        <nav className="flex items-center gap-1 justify-self-center">
           {NAV_LINKS.map(({ href, label }) => {
             const active = pathname === href || (href !== '/' && pathname.startsWith(href));
             return (
@@ -58,7 +60,7 @@ export default function Navbar() {
         </nav>
 
         {/* Right: clock + wallet */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 justify-self-end">
           <div className="hidden sm:flex flex-col items-end text-sm font-mono">
             <span className="text-muted-foreground text-xs">{dateStr}</span>
             <span className="text-foreground tabular-nums">{timeStr}</span>
