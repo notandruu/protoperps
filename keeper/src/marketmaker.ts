@@ -41,8 +41,8 @@ const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
 
-// $5 notional per side per market — keeps margin usage low for the demo.
-const QUOTE_SIZE_USD = 5;
+// Initial margin ratio at 50x leverage = 2% = 200 bps.
+const INIT_MARGIN_BPS = 200;
 // USDC to deposit on first run.
 const INITIAL_DEPOSIT_USDC = parseInt(process.env.INITIAL_DEPOSIT_USDC ?? '100', 10);
 // Requote interval.
@@ -291,14 +291,15 @@ async function quoteBothSides(
   bot: Keypair,
   market: MarketConfig,
   markPrice: number,
+  quoteSizeUsd: number,
 ): Promise<void> {
   const marginAcct = marginPda(bot.publicKey);
   const posPda = positionPda(market.marketPubkey, bot.publicKey);
   const oracle = oraclePda(market.marketPubkey);
 
-  // size in LOT_PRECISION units = (QUOTE_SIZE_USD * LOT_PRECISION * PRICE_PRECISION) / markPrice
+  // size in LOT_PRECISION units = (quoteSizeUsd * LOT_PRECISION * PRICE_PRECISION) / markPrice
   const LOT_PRECISION = 1_000_000;
-  const rawSize = Math.floor((QUOTE_SIZE_USD * LOT_PRECISION * PRICE_PRECISION) / markPrice);
+  const rawSize = Math.floor((quoteSizeUsd * LOT_PRECISION * PRICE_PRECISION) / markPrice);
   if (rawSize <= 0) return;
 
   const size = new BN(rawSize);
@@ -324,11 +325,23 @@ async function quoteBothSides(
         } as any)
         .remainingAccounts([])
         .rpc();
-      console.log(`[mm] quoted ${side} $${(markPrice / PRICE_PRECISION).toFixed(2)} size=${rawSize} on ${market.name}`);
+      console.log(`[mm] quoted ${side} $${(markPrice / PRICE_PRECISION).toFixed(2)} size=${rawSize} ($${quoteSizeUsd.toFixed(0)} notional) on ${market.name}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[mm] place failed (${market.name} ${side}): ${msg.slice(0, 120)}`);
     }
+  }
+}
+
+async function getFreeMarginUsd(program: Program, bot: Keypair): Promise<number> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const margin = await (program.account as any).marginAccount.fetch(marginPda(bot.publicKey));
+    const deposited = Number(margin.usdcDeposited?.toString() ?? margin.usdc_deposited?.toString() ?? 0);
+    const locked   = Number(margin.usdcLocked?.toString()   ?? margin.usdc_locked?.toString()   ?? 0);
+    return Math.max(0, (deposited - locked)) / PRICE_PRECISION;
+  } catch {
+    return 0;
   }
 }
 
@@ -337,6 +350,15 @@ async function tick(
   program: Program,
   bot: Keypair,
 ): Promise<void> {
+  // Size each quote so that all 14 resting orders together use ~70% of free margin.
+  // quoteSizeUsd = (freeMargin × 0.7) / (numMarkets × 2 sides) / marginRatio
+  const freeMarginUsd = await getFreeMarginUsd(program, bot);
+  // Each quote uses (INIT_MARGIN_BPS/10000) of its notional as margin.
+  // Spread 70% of free margin across all 14 resting orders, cap at $500/side.
+  const perSideMarginUsd = (freeMarginUsd * 0.7) / (MARKETS.length * 2);
+  const quoteSizeUsd = Math.min(500, Math.max(10, perSideMarginUsd / (INIT_MARGIN_BPS / 10_000)));
+  console.log(`[mm] free margin $${freeMarginUsd.toFixed(2)} → quoting $${quoteSizeUsd.toFixed(0)} notional/side`);
+
   for (const market of MARKETS) {
     try {
       const markPrice = await readOraclePrice(connection, market.marketPubkey);
@@ -350,7 +372,7 @@ async function tick(
         continue; // price stable — leave existing quotes in place
       }
       await cancelBotOrders(connection, program, bot, market);
-      await quoteBothSides(program, bot, market, markPrice);
+      await quoteBothSides(program, bot, market, markPrice, quoteSizeUsd);
       lastQuotedPrice.set(market.name, markPrice);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
