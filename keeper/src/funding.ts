@@ -196,21 +196,19 @@ async function tick(
   connection: Connection,
   authority: Keypair,
 ): Promise<void> {
-  const results = await Promise.allSettled(
-    MARKETS.map(market => updateFunding(program, connection, authority, market)),
-  );
-
-  results.forEach((result, i) => {
-    if (result.status === 'rejected') {
-      const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
-      // FundingTooEarly is expected when called ahead of schedule — not an error.
+  for (const market of MARKETS) {
+    try {
+      await updateFunding(program, connection, authority, market);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       if (reason.includes('FundingTooEarly')) {
-        console.log(`[funding/${MARKETS[i].name}] FundingTooEarly — interval not elapsed yet`);
+        console.log(`[funding/${market.name}] FundingTooEarly — interval not elapsed yet`);
       } else {
-        console.error(`[funding/${MARKETS[i].name}] unhandled error:`, result.reason);
+        console.error(`[funding/${market.name}] unhandled error:`, err);
       }
     }
-  });
+    await sleep(1_000);
+  }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
