@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { PublicKey, AccountMeta } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
@@ -38,6 +38,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
   const [orderType, setOrderType] = useState<OrderType>('limit');
   const [side, setSide] = useState<Side>('long');
   const [limitPrice, setLimitPrice] = useState('');
+  const [limitPriceTouched, setLimitPriceTouched] = useState(false);
   const [sizeUsd, setSizeUsd] = useState('');
   const [leverage, setLeverage] = useState(1);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +46,13 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
   const [txSig, setTxSig] = useState('');
 
   const freeMargin = margin?.free ?? 0;
+
+  // Keep limit price synced to oracle price until the user manually edits it.
+  useEffect(() => {
+    if (!limitPriceTouched && markPrice > 0) {
+      setLimitPrice((markPrice / PRICE_PRECISION).toFixed(2));
+    }
+  }, [markPrice, limitPriceTouched]);
 
   const effectivePrice = orderType === 'market'
     ? (side === 'long' ? Math.round(markPrice * 1.01) : Math.round(markPrice * 0.99))
@@ -91,16 +99,33 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
         : { market: {} };
       const sideParam = side === 'long' ? { long: {} } : { short: {} };
 
-      // Gather maker position PDAs for resting orders that this order might fill
+      // Fetch fresh market data to get current resting orders.
       const remainingAccounts: AccountMeta[] = [];
-      if (marketData) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const freshMkt = await (program.account as any).market.fetch(marketPubkey);
+        const numAsks: number = freshMkt.numAsks ?? 0;
+        const numBids: number = freshMkt.numBids ?? 0;
+        const rawAsks: Record<string, unknown>[] = (freshMkt.asks ?? []).slice(0, numAsks);
+        const rawBids: Record<string, unknown>[] = (freshMkt.bids ?? []).slice(0, numBids);
+
         const oppositeOrders = side === 'long'
-          ? marketData.asks.filter(o => o.price <= effectivePrice)
-          : marketData.bids.filter(o => o.price >= effectivePrice);
+          ? rawAsks.filter(o => Boolean(o.active) && Number(o.price?.toString() ?? 0) <= effectivePrice)
+          : rawBids.filter(o => Boolean(o.active) && Number(o.price?.toString() ?? 0) >= effectivePrice);
 
         for (const order of oppositeOrders.slice(0, 5)) {
-          const makerPositionPda = positionPda(marketPubkey, order.trader);
+          const makerPositionPda = positionPda(marketPubkey, order.trader as PublicKey);
           remainingAccounts.push({ pubkey: makerPositionPda, isWritable: true, isSigner: false });
+        }
+      } catch {
+        // Fall back to cached marketData if fresh fetch fails.
+        if (marketData) {
+          const oppositeOrders = side === 'long'
+            ? marketData.asks.filter(o => o.price <= effectivePrice)
+            : marketData.bids.filter(o => o.price >= effectivePrice);
+          for (const order of oppositeOrders.slice(0, 5)) {
+            remainingAccounts.push({ pubkey: positionPda(marketPubkey, order.trader), isWritable: true, isSigner: false });
+          }
         }
       }
 
@@ -126,6 +151,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
       setTxSig(sig);
       setSizeUsd('');
       setLimitPrice('');
+      setLimitPriceTouched(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg.includes('0x') ? msg.split('0x')[0].trim() : msg);
@@ -194,7 +220,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
             <input
               type="number"
               value={limitPrice}
-              onChange={e => setLimitPrice(e.target.value)}
+              onChange={e => { setLimitPrice(e.target.value); setLimitPriceTouched(true); }}
               placeholder={(markPrice / PRICE_PRECISION).toFixed(2)}
               className="w-full bg-muted border border-border rounded-lg pl-7 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring font-mono"
             />
