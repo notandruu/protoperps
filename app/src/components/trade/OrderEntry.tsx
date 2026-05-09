@@ -136,7 +136,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
 
   if (!publicKey) {
     return (
-      <div className="flex items-center justify-center h-full text-text-muted text-sm p-4 text-center">
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 text-center">
         Connect your wallet to trade
       </div>
     );
@@ -152,8 +152,8 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
             onClick={() => setOrderType(t)}
             className={`flex-1 py-1.5 text-sm capitalize transition-colors ${
               orderType === t
-                ? 'bg-surface-2 text-white'
-                : 'text-text-muted hover:text-white'
+                ? 'bg-muted text-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             {t}
@@ -167,8 +167,8 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
           onClick={() => setSide('long')}
           className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
             side === 'long'
-              ? 'bg-long/20 border-long text-long'
-              : 'border-border text-text-muted hover:border-long hover:text-long'
+              ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-500'
+              : 'border-border text-muted-foreground hover:border-emerald-500/40 hover:text-emerald-500'
           }`}
         >
           Long
@@ -177,8 +177,8 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
           onClick={() => setSide('short')}
           className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
             side === 'short'
-              ? 'bg-short/20 border-short text-short'
-              : 'border-border text-text-muted hover:border-short hover:text-short'
+              ? 'bg-red-500/15 border-red-500/50 text-red-500'
+              : 'border-border text-muted-foreground hover:border-red-500/40 hover:text-red-500'
           }`}
         >
           Short
@@ -188,15 +188,15 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
       {/* Price input (limit only) */}
       {orderType === 'limit' && (
         <div>
-          <label className="block text-xs text-text-muted mb-1">Limit Price (USD)</label>
+          <label className="block text-xs text-muted-foreground mb-1.5">Limit Price (USD)</label>
           <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
             <input
               type="number"
               value={limitPrice}
               onChange={e => setLimitPrice(e.target.value)}
               placeholder={(markPrice / PRICE_PRECISION).toFixed(2)}
-              className="w-full bg-surface-2 border border-border rounded-lg pl-7 pr-3 py-2 text-sm text-white placeholder-text-muted focus:outline-none focus:border-accent"
+              className="w-full bg-muted border border-border rounded-lg pl-7 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring font-mono"
             />
           </div>
         </div>
@@ -204,64 +204,62 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
 
       {/* Size input */}
       <div>
-        <label className="block text-xs text-text-muted mb-1">Size (USD notional)</label>
+        <label className="block text-xs text-muted-foreground mb-1.5">Size (USD notional)</label>
         <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">$</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
           <input
             type="number"
             value={sizeUsd}
             onChange={e => setSizeUsd(e.target.value)}
             placeholder="0.00"
-            className="w-full bg-surface-2 border border-border rounded-lg pl-7 pr-14 py-2 text-sm text-white placeholder-text-muted focus:outline-none focus:border-accent"
+            className="w-full bg-muted border border-border rounded-lg pl-7 pr-14 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring font-mono"
           />
           <button
             onClick={handleMaxSize}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-accent hover:text-purple-400"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-primary hover:text-primary/80 font-medium"
           >
             MAX
           </button>
         </div>
       </div>
 
-      {/* Leverage slider */}
+      {/* Leverage selector */}
       <div>
-        <div className="flex justify-between text-xs text-text-muted mb-1">
-          <span>Leverage</span>
-          <span className="text-white font-medium">{leverage}x</span>
-        </div>
-        <input
-          type="range"
-          min={1}
-          max={5}
-          step={1}
-          value={leverage}
-          onChange={e => setLeverage(Number(e.target.value))}
-          className="w-full accent-accent"
-        />
-        <div className="flex justify-between text-xs text-text-muted mt-0.5">
+        <div className="text-xs text-muted-foreground mb-2">Leverage</div>
+        <div className="flex gap-1.5">
           {[1, 2, 3, 4, 5].map(l => (
-            <span key={l} className={leverage === l ? 'text-accent' : ''}>{l}x</span>
+            <button
+              key={l}
+              onClick={() => setLeverage(l)}
+              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                leverage === l
+                  ? 'bg-primary/10 border-primary/50 text-primary'
+                  : 'bg-muted border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
+              }`}
+            >
+              {l}x
+            </button>
           ))}
         </div>
       </div>
 
       {/* Order summary */}
-      <div className="rounded-lg bg-surface-2 border border-border p-3 space-y-1.5 text-xs">
+      <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-1.5 text-xs">
         <div className="flex justify-between">
-          <span className="text-text-muted">Required Collateral</span>
-          <span className="text-white font-mono">
+          <span className="text-muted-foreground">Required Collateral</span>
+          <span className="text-foreground font-mono">
             {requiredCollateral > 0 ? formatUsdc(requiredCollateral) : '—'}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-muted">Free Margin</span>
-          <span className={`font-mono ${requiredCollateral > freeMargin ? 'text-short' : 'text-white'}`}>
+          <span className="text-muted-foreground">Free Margin</span>
+          <span className={`font-mono ${requiredCollateral > freeMargin ? 'text-red-500' : 'text-foreground'}`}>
             {formatUsdc(freeMargin)}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-text-muted">Entry Price</span>
-          <span className="text-white font-mono">
+          <span className="text-muted-foreground">Entry Price</span>
+          <span className="text-foreground font-mono">
             {effectivePrice > 0 ? `$${(effectivePrice / PRICE_PRECISION).toFixed(2)}` : '—'}
           </span>
         </div>
@@ -269,14 +267,14 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
 
       {/* Error */}
       {error && (
-        <div className="text-xs text-short bg-short/10 border border-short/30 rounded-lg px-3 py-2">
+        <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
           {error}
         </div>
       )}
 
       {/* Success */}
       {txSig && (
-        <div className="text-xs text-long bg-long/10 border border-long/30 rounded-lg px-3 py-2">
+        <div className="text-xs text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
           Order placed!{' '}
           <a
             href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
@@ -295,8 +293,8 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
         disabled={submitting || !sizeUsd || parseFloat(sizeUsd) <= 0 || (orderType === 'limit' && !limitPrice)}
         className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
           side === 'long'
-            ? 'bg-long text-white hover:bg-green-600'
-            : 'bg-short text-white hover:bg-red-600'
+            ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+            : 'bg-red-500 text-white hover:bg-red-600'
         }`}
       >
         {submitting ? 'Placing order…' : `Place ${side === 'long' ? 'Long' : 'Short'}`}

@@ -2,38 +2,29 @@
 
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { Button } from '@/components/ui/button';
 
 export default function WalletButton() {
   const { publicKey, disconnect, connecting } = useWallet();
   const { setVisible } = useWalletModal();
 
   if (connecting) {
-    return (
-      <button className="px-4 py-2 rounded-lg bg-accent text-white text-sm opacity-60 cursor-not-allowed">
-        Connecting…
-      </button>
-    );
+    return <Button variant="secondary" size="sm" disabled>Connecting…</Button>;
   }
 
   if (publicKey) {
     const addr = publicKey.toBase58();
     const short = addr.slice(0, 4) + '…' + addr.slice(-4);
     return (
-      <button
-        onClick={() => disconnect()}
-        className="px-4 py-2 rounded-lg bg-surface-2 border border-border text-sm text-slate-300 hover:border-accent hover:text-white transition-colors"
-      >
+      <Button variant="outline" size="sm" className="font-mono" onClick={() => disconnect()}>
         {short}
-      </button>
+      </Button>
     );
   }
 
   return (
-    <button
-      onClick={() => setVisible(true)}
-      className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-purple-700 transition-colors"
-    >
+    <Button size="sm" onClick={() => setVisible(true)}>
       Connect Wallet
-    </button>
+    </Button>
   );
 }

@@ -1,8 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required for @coral-xyz/anchor and @solana/* packages that reference
-  // Node built-ins — Vercel's runtime handles them fine server-side.
   serverExternalPackages: ['@coral-xyz/anchor', '@solana/web3.js', '@solana/spl-token'],
+
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'logo.clearbit.com' },
+      { protocol: 'https', hostname: 'www.google.com' },
+    ],
+  },
+
+  // Silence the "webpack config but no turbopack config" warning in Next.js 16
+  turbopack: {},
 
   webpack: (config, { isServer }) => {
     if (!isServer) {
