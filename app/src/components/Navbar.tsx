@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import WalletButton from './WalletButton';
+import { Button } from '@/components/ui/button';
 
 const NAV_LINKS = [
   { href: '/', label: 'Markets' },
@@ -11,39 +13,73 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [dateStr, setDateStr] = useState('');
+  const [timeStr, setTimeStr] = useState('');
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      setDateStr(now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }));
+      setTimeStr(now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-border bg-surface/90 backdrop-blur-sm">
-      <div className="max-w-screen-2xl mx-auto px-6 flex items-center h-14 gap-8">
-        {/* Logo */}
-        <Link href="/" className="text-white font-bold text-lg tracking-tight select-none">
-          proto<span className="text-accent">perps</span>
-        </Link>
+    <header className="sticky top-0 z-50 rounded-b-xl border border-t-0 border-border bg-card/90 backdrop-blur-md">
+      <div className="px-5 py-3 flex items-center justify-between">
+
+        {/* Logo + live badge */}
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-2.5 select-none group">
+            {/* Icon mark */}
+            <div className="w-7 h-7 rounded-md bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-emerald-500">
+                <polyline points="1,10 4.5,5.5 7.5,7.5 12,2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+                <polyline points="9,2 12,2 12,5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            {/* Wordmark */}
+            <span className="text-[1.05rem] font-semibold tracking-tight leading-none">
+              <span className="text-muted-foreground font-medium">proto</span><span className="text-foreground">perps</span>
+            </span>
+          </Link>
+          <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            LIVE
+          </span>
+        </div>
 
         {/* Nav links */}
-        <div className="flex items-center gap-1">
+        <nav className="flex items-center gap-1">
           {NAV_LINKS.map(({ href, label }) => {
             const active = pathname === href || (href !== '/' && pathname.startsWith(href));
             return (
-              <Link
-                key={href}
-                href={href}
-                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  active
-                    ? 'text-white bg-surface-2'
-                    : 'text-text-muted hover:text-white'
-                }`}
-              >
-                {label}
+              <Link key={href} href={href}>
+                <Button
+                  variant={active ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="text-sm"
+                >
+                  {label}
+                </Button>
               </Link>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="ml-auto">
+        {/* Right: clock + wallet */}
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:flex flex-col items-end text-sm font-mono">
+            <span className="text-muted-foreground text-xs">{dateStr}</span>
+            <span className="text-foreground tabular-nums">{timeStr}</span>
+          </div>
           <WalletButton />
         </div>
+
       </div>
-    </nav>
+    </header>
   );
 }
