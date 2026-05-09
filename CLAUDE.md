@@ -137,9 +137,9 @@ all order matching must happen atomically within the place_order transaction. do
 
 ### margin system
 - USDC only as collateral
-- max 5x leverage
-- initial margin ratio: 20% (1/5)
-- maintenance margin ratio: 10%
+- max 50x leverage
+- initial margin ratio: 2% (1/50)
+- maintenance margin ratio: 1%
 - liquidation reward: 5% of remaining collateral to liquidator
 - no cross-margin (each position has its own collateral for v1, simpler)
 

@@ -137,9 +137,9 @@ free_collateral = usdc_deposited − usdc_locked
 
 | Parameter | Value |
 |-----------|-------|
-| Max leverage | 5× |
-| Initial margin ratio | 20% |
-| Maintenance margin ratio | 10% |
+| Max leverage | 50× |
+| Initial margin ratio | 2% |
+| Maintenance margin ratio | 1% |
 | Liquidation reward | 5% of remaining collateral |
 | Collateral | USDC only |
 | Orderbook depth | 64 bids / 64 asks per market |
@@ -230,7 +230,7 @@ This is the same mechanism used by BitMEX-style CEX perps, translated entirely o
    · oracle checked: must be Active
    · matching engine walks asks, fills up to 5 makers
    · maker Position PDAs in remaining_accounts updated atomically
-   · required initial margin (20%) locked from free_collateral
+   · required initial margin (2%) locked from free_collateral
    · if unfilled: resting limit order inserted into orderbook
 
 3. Position lives
@@ -250,7 +250,7 @@ This is the same mechanism used by BitMEX-style CEX perps, translated entirely o
 
 ## Liquidation
 
-When `equity / notional < 10%` (maintenance margin breached):
+When `equity / notional < 1%` (maintenance margin breached):
 
 ```
 equity   = collateral + unrealized_pnl
