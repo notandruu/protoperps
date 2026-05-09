@@ -185,8 +185,8 @@ async function tick(
   program: Program,
   authority: Keypair,
 ): Promise<void> {
-  const results = await Promise.allSettled(
-    MARKETS.map(async market => {
+  for (const market of MARKETS) {
+    try {
       // 1. Fetch live price from Dexscreener.
       let price: number | null = null;
       try {
@@ -199,14 +199,11 @@ async function tick(
       if (price !== null) {
         lastKnownPrice.set(market.name, price);
       } else {
-        // Fall back to last known price, then to static seed — never skip.
         price = lastKnownPrice.get(market.name) ?? market.fallbackPriceUsd;
         console.warn(`[oracle/${market.name}] Dexscreener unavailable → using $${price.toFixed(2)}`);
       }
 
       // 2. Clamp to ±9% of the on-chain previous_price to satisfy the deviation guard.
-      //    The guard checks |new - previous_price| / previous_price < 10%.
-      //    This allows prices to converge over several ticks if they've diverged >10%.
       const onchainPrice = await readOnchainPreviousPrice(connection, market);
       if (onchainPrice !== null && onchainPrice > 0) {
         const lo = onchainPrice * (1 - MAX_STEP);
@@ -232,14 +229,12 @@ async function tick(
       console.log(
         `[oracle/${market.name}] price=$${price.toFixed(2)}  twap=$${twap.toFixed(2)}  sig=${sig.slice(0, 16)}…`,
       );
-    }),
-  );
-
-  results.forEach((result, i) => {
-    if (result.status === 'rejected') {
-      console.error(`[oracle/${MARKETS[i].name}] unhandled error:`, result.reason);
+    } catch (err) {
+      console.error(`[oracle/${market.name}] unhandled error:`, err);
     }
-  });
+    // Stagger market updates to stay within RPC rate limits.
+    await sleep(800);
+  }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────

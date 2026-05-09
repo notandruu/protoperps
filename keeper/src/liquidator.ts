@@ -327,11 +327,14 @@ async function tick(
   authority: Keypair,
   liquidatorMarginPda: PublicKey,
 ): Promise<void> {
-  await Promise.allSettled(
-    MARKETS.map(market =>
-      scanMarket(program, connection, authority, liquidatorMarginPda, market),
-    ),
-  );
+  for (const market of MARKETS) {
+    try {
+      await scanMarket(program, connection, authority, liquidatorMarginPda, market);
+    } catch (err) {
+      console.error(`[liquidator/${market.name}] unhandled error:`, err);
+    }
+    await new Promise(resolve => setTimeout(resolve, 1_000));
+  }
 }
 
 // ── Entry point ────────────────────────────────────────────────────────────
