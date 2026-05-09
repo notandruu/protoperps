@@ -63,32 +63,48 @@ export default function PositionsTable({
       const rawSize = partial ?? position.size;
       const size = new BN(rawSize);
 
-      // Build remaining accounts from the opposing side of the orderbook.
-      // Long close (short order) matches against bids; short close (long order) matches against asks.
-      const opposingOrders = position.side === 'long'
-        ? (marketData?.bids ?? [])
-        : (marketData?.asks ?? []);
-
-      // Deduplicate makers and compute their Position PDAs (max 5 fills).
+      // Fetch fresh orderbook so we always have current maker quotes.
       const seen = new Set<string>();
       const makerAccounts: { pubkey: PublicKey; isSigner: boolean; isWritable: boolean }[] = [];
-      for (const order of opposingOrders) {
-        if (makerAccounts.length >= 5) break;
-        const traderKey = order.trader instanceof PublicKey ? order.trader : new PublicKey(order.trader);
-        const key = traderKey.toBase58();
-        if (seen.has(key) || key === publicKey.toBase58()) continue;
-        seen.add(key);
-        makerAccounts.push({
-          pubkey: positionPda(marketPubkey, traderKey),
-          isSigner: false,
-          isWritable: true,
-        });
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const freshMkt = await (program.account as any).market.fetch(marketPubkey);
+        const numBids: number = freshMkt.numBids ?? 0;
+        const numAsks: number = freshMkt.numAsks ?? 0;
+        // Closing a long → place short → match against bids.
+        // Closing a short → place long → match against asks.
+        const rawOrders: Record<string, unknown>[] = position.side === 'long'
+          ? (freshMkt.bids as Record<string, unknown>[]).slice(0, numBids)
+          : (freshMkt.asks as Record<string, unknown>[]).slice(0, numAsks);
+
+        for (const order of rawOrders) {
+          if (makerAccounts.length >= 5) break;
+          if (!order.active) continue;
+          const traderKey = order.trader instanceof PublicKey
+            ? order.trader
+            : new PublicKey(order.trader as string);
+          const key = traderKey.toBase58();
+          if (seen.has(key) || key === publicKey.toBase58()) continue;
+          seen.add(key);
+          makerAccounts.push({ pubkey: positionPda(marketPubkey, traderKey), isSigner: false, isWritable: true });
+        }
+      } catch {
+        // Fall back to cached data if fetch fails.
+        const opposingOrders = position.side === 'long' ? (marketData?.bids ?? []) : (marketData?.asks ?? []);
+        for (const order of opposingOrders) {
+          if (makerAccounts.length >= 5) break;
+          const traderKey = order.trader instanceof PublicKey ? order.trader : new PublicKey(order.trader);
+          const key = traderKey.toBase58();
+          if (seen.has(key) || key === publicKey.toBase58()) continue;
+          seen.add(key);
+          makerAccounts.push({ pubkey: positionPda(marketPubkey, traderKey), isSigner: false, isWritable: true });
+        }
       }
 
       await program.methods
         .placeOrder({
           side: sideParam,
-          orderType: { market: {} },
+          orderType: { limit: {} },
           price,
           size,
         })
