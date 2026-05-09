@@ -3,6 +3,7 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-gutter: stable;
 }
 
 @custom-variant dark (&:is(.dark *));

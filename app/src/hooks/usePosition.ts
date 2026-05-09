@@ -63,7 +63,7 @@ export function useAllPositions() {
         const filters = [
           {
             memcmp: {
-              offset: 40, // trader pubkey at offset 40 in Position account
+              offset: 41, // trader pubkey at offset 41: 8 (discriminator) + 1 (bump) + 32 (market)
               bytes: publicKey!.toBase58(),
             },
           },

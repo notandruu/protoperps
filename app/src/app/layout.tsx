@@ -12,6 +12,7 @@ const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono'
 export const metadata: Metadata = {
   title: 'Protoperps — Synthetic Pre-IPO Perps',
   description: 'Trade perpetual futures on SpaceX, OpenAI, Anthropic, and more on Solana.',
+  icons: { icon: '/favicon.png' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

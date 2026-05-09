@@ -3,15 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { MARKETS } from '@/lib/constants';
 import { useOracle, effectiveOracleStatus } from '@/hooks/useOracle';
-import { useMarket } from '@/hooks/useMarket';
 import { formatPrice, formatCompact, formatChange } from '@/lib/math';
 import { useDexStats } from '@/hooks/useDexStats';
 import { PRICE_PRECISION } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { SplitFlapText } from '@/components/ui/split-flap-text';
-import { DirectionIcon } from '@/components/ui/direction-icon';
 import { cn } from '@/lib/utils';
-import { TrendingUp, Activity, Shield, Trash2 } from 'lucide-react';
+import { TrendingUp, Activity, Shield } from 'lucide-react';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -36,16 +34,10 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
 }) {
   const router = useRouter();
   const { data: oracle, isLoading } = useOracle(marketPubkey);
-  const { data: market } = useMarket(marketPubkey);
   const { data: dex } = useDexStats(tokenMint);
   const status = effectiveOracleStatus(oracle);
 
   const price = oracle?.price ?? 0;
-  const fundingRate = market?.cumulativeFundingRate ?? 0;
-
-  const direction: 'up' | 'down' | 'flat' =
-    fundingRate > 0 ? 'up' : fundingRate < 0 ? 'down' : 'flat';
-
   const priceStr = price > 0 ? formatPrice(price) : '———';
   return (
     <motion.tr
@@ -59,7 +51,6 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
       {/* Symbol */}
       <td className="py-4 px-4">
         <div className="flex items-center gap-2.5">
-          <DirectionIcon direction={direction} />
           <SplitFlapText
             value={symbol}
             charset="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

@@ -159,15 +159,15 @@ export default function TradePage() {
       <div className="grid grid-cols-12 gap-4">
 
         {/* Chart */}
-        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8" style={{ height: '460px' } as React.CSSProperties}>
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8">
           <PanelHeader title="Price Chart" />
-          <div className="p-4" style={{ height: 'calc(100% - 41px)' }}>
-            <PriceChart oracle={oracle} symbol={symbol} fundingRate={fundingRate} />
+          <div className="p-2">
+            <PriceChart oracle={oracle} symbol={symbol} fundingRate={fundingRate} change24h={dex?.change24h} />
           </div>
         </GradPanel>
 
         {/* Order entry */}
-        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4 overflow-y-auto" style={{ height: '460px' } as React.CSSProperties}>
+        <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4">
           <PanelHeader title="Place Order" />
           <OrderEntry marketPubkey={market.marketPubkey} marketData={marketData} markPrice={markPrice} />
         </GradPanel>
