@@ -124,6 +124,20 @@ export function calcLeverage(
   return notional / collateral;
 }
 
+/** Format a raw USD number as a compact string: $1.23M, $456K, $789 */
+export function formatCompact(n: number): string {
+  if (n >= 1_000_000_000) return '$' + (n / 1_000_000_000).toFixed(2) + 'B';
+  if (n >= 1_000_000)     return '$' + (n / 1_000_000).toFixed(2) + 'M';
+  if (n >= 1_000)         return '$' + (n / 1_000).toFixed(1) + 'K';
+  return '$' + n.toFixed(0);
+}
+
+/** Format a percentage change with sign and two decimals: "+44.20%", "-5.30%" */
+export function formatChange(pct: number): string {
+  const sign = pct >= 0 ? '+' : '';
+  return sign + pct.toFixed(2) + '%';
+}
+
 /**
  * Convert a user-facing dollar amount to the on-chain u64 representation.
  * e.g. "100.50" → 100_500_000

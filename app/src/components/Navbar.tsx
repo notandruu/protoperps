@@ -31,26 +31,12 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 rounded-b-xl border border-t-0 border-border bg-card/90 backdrop-blur-md">
       <div className="px-5 py-3 flex items-center justify-between">
 
-        {/* Logo + live badge */}
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2.5 select-none group">
-            {/* Icon mark */}
-            <div className="w-7 h-7 rounded-md bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center shrink-0">
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" className="text-emerald-500">
-                <polyline points="1,10 4.5,5.5 7.5,7.5 12,2" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-                <polyline points="9,2 12,2 12,5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            {/* Wordmark */}
-            <span className="text-[1.05rem] font-semibold tracking-tight leading-none">
-              <span className="text-muted-foreground font-medium">proto</span><span className="text-foreground">perps</span>
-            </span>
-          </Link>
-          <span className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 border border-emerald-500/30">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            LIVE
+        {/* Logo */}
+        <Link href="/" className="select-none">
+          <span className="text-[1.05rem] font-semibold tracking-tight leading-none">
+            <span className="bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">proto</span><span className="text-foreground">perps</span>
           </span>
-        </div>
+        </Link>
 
         {/* Nav links */}
         <nav className="flex items-center gap-1">

@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { MARKETS } from '@/lib/constants';
 import { useOracle, effectiveOracleStatus } from '@/hooks/useOracle';
 import { useMarket } from '@/hooks/useMarket';
-import { formatPrice, formatFundingRate } from '@/lib/math';
+import { formatPrice, formatFundingRate, formatCompact, formatChange } from '@/lib/math';
+import { useDexStats } from '@/hooks/useDexStats';
 import { PRICE_PRECISION } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { SplitFlapText } from '@/components/ui/split-flap-text';
@@ -27,15 +28,17 @@ const MARKET_GRAD: Record<string, string> = {
 };
 
 // ── Single market row (table row) ────────────────────────────────────────────
-function MarketRow({ symbol, name, marketPubkey, index }: {
+function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
   symbol: string;
   name: string;
   marketPubkey: import('@solana/web3.js').PublicKey;
+  tokenMint: string;
   index: number;
 }) {
   const router = useRouter();
   const { data: oracle, isLoading } = useOracle(marketPubkey);
   const { data: market } = useMarket(marketPubkey);
+  const { data: dex } = useDexStats(tokenMint);
   const status = effectiveOracleStatus(oracle);
 
   const price = oracle?.price ?? 0;
@@ -89,6 +92,24 @@ function MarketRow({ symbol, name, marketPubkey, index }: {
             flipSpeedMs={40}
           />
         )}
+      </td>
+
+      {/* 24h % */}
+      <td className="py-4 pl-8 pr-4 hidden md:table-cell">
+        {dex ? (
+          <span className={cn('text-sm font-mono tabular-nums', dex.change24h >= 0 ? 'text-emerald-500' : 'text-red-500')}>
+            {formatChange(dex.change24h)}
+          </span>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
+      </td>
+
+      {/* Volume 24h */}
+      <td className="py-4 pl-8 pr-4 hidden lg:table-cell">
+        <span className="text-sm font-mono tabular-nums text-muted-foreground">
+          {dex ? formatCompact(dex.volume24h) : '—'}
+        </span>
       </td>
 
       {/* Funding */}
@@ -208,6 +229,8 @@ export default function MarketsTable() {
                 <col className="w-36" />
                 <col className="w-32" />
                 <col className="w-36" />
+                <col className="w-28 hidden md:table-column" />
+                <col className="w-32 hidden lg:table-column" />
                 <col className="w-32 hidden sm:table-column" />
                 <col className="w-28 hidden sm:table-column" />
                 <col className="w-24" />
@@ -222,6 +245,12 @@ export default function MarketsTable() {
                   </th>
                   <th className="py-2 px-3 text-left">
                     <span className="text-xs font-semibold text-muted-foreground">Mark Price</span>
+                  </th>
+                  <th className="py-2 pl-8 pr-3 text-left hidden md:table-cell">
+                    <span className="text-xs font-semibold text-muted-foreground">24h %</span>
+                  </th>
+                  <th className="py-2 pl-8 pr-3 text-left hidden lg:table-cell">
+                    <span className="text-xs font-semibold text-muted-foreground">Volume 24h</span>
                   </th>
                   <th className="py-2 pl-8 pr-3 text-left hidden sm:table-cell">
                     <span className="text-xs font-semibold text-muted-foreground">Funding</span>
@@ -242,6 +271,7 @@ export default function MarketsTable() {
                       symbol={m.symbol}
                       name={m.name}
                       marketPubkey={m.marketPubkey}
+                      tokenMint={m.tokenMint}
                       index={i}
                     />
                   ))}
