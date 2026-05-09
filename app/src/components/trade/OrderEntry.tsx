@@ -227,7 +227,7 @@ export default function OrderEntry({ marketPubkey, marketData, markPrice }: Orde
       <div>
         <div className="text-xs text-muted-foreground mb-2">Leverage</div>
         <div className="flex gap-1.5">
-          {[1, 2, 3, 4, 5].map(l => (
+          {[1, 5, 10, 25, 50].map(l => (
             <button
               key={l}
               onClick={() => setLeverage(l)}
