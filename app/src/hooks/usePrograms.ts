@@ -21,7 +21,7 @@ export function usePrograms() {
       connection,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wallet as any,
-      { commitment: 'confirmed' },
+      { commitment: 'processed' },
     );
   }, [connection, wallet]);
 

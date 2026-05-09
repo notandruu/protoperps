@@ -47,7 +47,7 @@ export function usePosition(marketPubkey: PublicKey | null) {
         return null;
       }
     },
-    { refreshInterval: 3000 },
+    { refreshInterval: 5000 },
   );
 }
 

@@ -75,6 +75,6 @@ export function useMarket(marketPubkey: PublicKey | null) {
         return null;
       }
     },
-    { refreshInterval: 2000 },
+    { refreshInterval: 4000 },
   );
 }

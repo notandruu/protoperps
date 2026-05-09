@@ -35,6 +35,6 @@ export function useMarginAccount() {
         return null;
       }
     },
-    { refreshInterval: 3000 },
+    { refreshInterval: 5000 },
   );
 }
