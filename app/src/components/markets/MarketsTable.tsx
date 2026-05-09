@@ -4,13 +4,12 @@ import { useRouter } from 'next/navigation';
 import { MARKETS } from '@/lib/constants';
 import { useOracle, effectiveOracleStatus } from '@/hooks/useOracle';
 import { useMarket } from '@/hooks/useMarket';
-import { formatPrice, formatFundingRate, formatCompact, formatChange } from '@/lib/math';
+import { formatPrice, formatCompact, formatChange } from '@/lib/math';
 import { useDexStats } from '@/hooks/useDexStats';
 import { PRICE_PRECISION } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { SplitFlapText } from '@/components/ui/split-flap-text';
 import { DirectionIcon } from '@/components/ui/direction-icon';
-import { ChangeBadge } from '@/components/ui/change-badge';
 import { cn } from '@/lib/utils';
 import { TrendingUp, Activity, Shield, Trash2 } from 'lucide-react';
 import { CompanyLogo } from '@/components/ui/company-logo';
@@ -48,8 +47,6 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
     fundingRate > 0 ? 'up' : fundingRate < 0 ? 'down' : 'flat';
 
   const priceStr = price > 0 ? formatPrice(price) : '———';
-  const fundingPct = (fundingRate / 1e9) * 100;
-
   return (
     <motion.tr
       initial={{ opacity: 0, y: 10 }}
@@ -112,32 +109,6 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
         </span>
       </td>
 
-      {/* Funding */}
-      <td className="py-4 pl-8 pr-4 hidden sm:table-cell">
-        <ChangeBadge value={fundingPct} direction={direction} suffix="%" />
-      </td>
-
-      {/* Status */}
-      <td className="py-4 pl-8 pr-4 hidden sm:table-cell">
-        {status === 0 && (
-          <span className="inline-flex items-center gap-1.5 text-sm text-emerald-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />Active
-          </span>
-        )}
-        {status === 1 && (
-          <span className="inline-flex items-center gap-1.5 text-sm text-yellow-500">
-            <span className="w-2 h-2 rounded-full bg-yellow-500" />Reduce Only
-          </span>
-        )}
-        {status === 2 && (
-          <span className="inline-flex items-center gap-1.5 text-sm text-red-500">
-            <span className="w-2 h-2 rounded-full bg-red-500" />Paused
-          </span>
-        )}
-        {status === -1 && (
-          <span className="text-sm text-muted-foreground">Not Deployed</span>
-        )}
-      </td>
 
       {/* Trade button */}
       <td className="py-4 px-4">
@@ -231,8 +202,6 @@ export default function MarketsTable() {
                 <col className="w-36" />
                 <col className="w-28 hidden md:table-column" />
                 <col className="w-32 hidden lg:table-column" />
-                <col className="w-32 hidden sm:table-column" />
-                <col className="w-28 hidden sm:table-column" />
                 <col className="w-24" />
               </colgroup>
               <thead>
@@ -251,12 +220,6 @@ export default function MarketsTable() {
                   </th>
                   <th className="py-2 pl-8 pr-3 text-left hidden lg:table-cell">
                     <span className="text-xs font-semibold text-muted-foreground">Volume 24h</span>
-                  </th>
-                  <th className="py-2 pl-8 pr-3 text-left hidden sm:table-cell">
-                    <span className="text-xs font-semibold text-muted-foreground">Funding</span>
-                  </th>
-                  <th className="py-2 pl-8 pr-3 text-left hidden sm:table-cell">
-                    <span className="text-xs font-semibold text-muted-foreground">Status</span>
                   </th>
                   <th className="py-2 px-3 text-left">
                     <span className="text-xs font-semibold text-muted-foreground">Action</span>
