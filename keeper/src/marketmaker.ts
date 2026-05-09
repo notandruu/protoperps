@@ -45,8 +45,8 @@ const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
 const INIT_MARGIN_BPS = 200;
 // USDC to deposit on first run.
 const INITIAL_DEPOSIT_USDC = parseInt(process.env.INITIAL_DEPOSIT_USDC ?? '100', 10);
-// Requote interval.
-const REQUOTE_INTERVAL_MS = 30_000;
+// Requote interval — longer than oracle's 30s so they don't burst simultaneously.
+const REQUOTE_INTERVAL_MS = 60_000;
 
 // ── PDA helpers (mirrors app/src/lib/constants.ts) ─────────────────────────
 
@@ -378,8 +378,8 @@ async function tick(
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[mm] tick error (${market.name}): ${msg.slice(0, 120)}`);
     }
-    // Small delay between markets to avoid rate limiting.
-    await sleep(500);
+    // Stagger markets to stay under RPC rate limit.
+    await sleep(2500);
   }
 }
 

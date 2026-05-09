@@ -233,7 +233,7 @@ async function tick(
       console.error(`[oracle/${market.name}] unhandled error:`, err);
     }
     // Stagger market updates to stay within RPC rate limits.
-    await sleep(800);
+    await sleep(2500);
   }
 }
 
