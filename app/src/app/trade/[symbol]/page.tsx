@@ -9,8 +9,10 @@ import PriceChart from '@/components/trade/PriceChart';
 import OrderBook from '@/components/trade/OrderBook';
 import OrderEntry from '@/components/trade/OrderEntry';
 import PositionsTable from '@/components/trade/PositionsTable';
+import OpenOrders from '@/components/trade/OpenOrders';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 import { formatPrice, formatFundingRate, formatCompact, formatChange } from '@/lib/math';
 import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
 import { useDexStats } from '@/hooks/useDexStats';
@@ -97,6 +99,7 @@ export default function TradePage() {
     ? (openInterest / LOT_PRECISION) * (markPrice / PRICE_PRECISION)
     : 0;
 
+  const [bottomTab, setBottomTab] = useState<'position' | 'orders'>('position');
   const gradFrom = MARKET_GRAD[symbol] ?? 'from-violet-500';
 
   if (!market) {
@@ -177,16 +180,39 @@ export default function TradePage() {
           <OrderBook market={marketData} markPrice={markPrice} />
         </GradPanel>
 
-        {/* Positions */}
+        {/* Positions / Open Orders */}
         <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8">
-          <PanelHeader title="My Position" />
-          <PositionsTable
-            marketPubkey={market.marketPubkey}
-            position={position}
-            markPrice={markPrice}
-            marketData={marketData}
-            onClose={() => { refreshPosition(); refreshMarket(); }}
-          />
+          {/* Tab header */}
+          <div className="px-4 py-2.5 border-b border-border flex items-center gap-4">
+            {(['position', 'orders'] as const).map(tab => (
+              <button
+                key={tab}
+                onClick={() => setBottomTab(tab)}
+                className={cn(
+                  'text-xs font-semibold uppercase tracking-wider transition-colors',
+                  bottomTab === tab
+                    ? 'text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {tab === 'position' ? 'My Position' : 'Open Orders'}
+              </button>
+            ))}
+          </div>
+          {bottomTab === 'position' ? (
+            <PositionsTable
+              marketPubkey={market.marketPubkey}
+              position={position}
+              markPrice={markPrice}
+              marketData={marketData}
+              onClose={() => { refreshPosition(); refreshMarket(); }}
+            />
+          ) : (
+            <OpenOrders
+              marketPubkey={market.marketPubkey}
+              onCancel={() => refreshMarket()}
+            />
+          )}
         </GradPanel>
 
       </div>
