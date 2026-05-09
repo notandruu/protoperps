@@ -63,7 +63,7 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
           <SplitFlapText
             value={symbol}
             charset="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-            direction={direction}
+            direction="flat"
             flipSpeedMs={40}
           />
         </div>
@@ -85,7 +85,7 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
           <SplitFlapText
             value={priceStr}
             charset="0123456789.$,"
-            direction={direction}
+            direction="flat"
             flipSpeedMs={40}
           />
         )}
