@@ -1,51 +1,31 @@
-# ProtoPerps
+# Trading Engine
 
-**Perpetual futures on pre IPO company valuations on Solana.**
-
-Trade long/short exposure to SpaceX, OpenAI, Anthropic, Anduril, Polymarket, Neuralink, and Kalshi without touching real shares, SPVs, or any off-chain settlement. Prices track live [Prestocks](https://prestocks.com) DEX token valuations, updated on-chain every 30 seconds by a keeper bot.
-
-**Live:** [protoperps.vercel.app](https://protoperps.vercel.app)
+A distributed trading platform that ingests real-time market data streams over TCP/WebSocket, processes events through strategy modules, and tracks PnL and order book state in real time. Processes 10K+ orders per second with fault-tolerant order execution via dead letter queue and circuit breaker patterns. Consumes live [Pyth Network](https://pyth.network) price feeds; includes a web dashboard for real-time order book visualization and PnL tracking.
 
 ---
 
-## What is this?
+## Features
 
-### Perpetual futures
-
-A perpetual future (perp) is a leveraged derivative that tracks an underlying asset's price with no expiry date. Unlike options or futures, you hold it indefinitely — your PnL accumulates in real time as the price moves against your entry.
-
-Price alignment with the underlying is maintained via a **funding rate**: when the perp trades above the oracle price, longs pay shorts (pressure to sell); when it trades below, shorts pay longs (pressure to buy). This creates a continuous rebalancing force.
-
-### Synthetic perpetuals
-
-ProtoPerps is a **synthetic** perp protocol, meaning:
-
-- Positions are **not** matched against a direct counterparty in a traditional sense — the protocol itself holds the math
-- The underlying asset (SpaceX, OpenAI stock) **never moves on-chain** — only USDC does
-- Price truth comes from an **on-chain oracle**, not the perp market itself
-- Any asset with a price feed can be listed — including pre-IPO private companies that have no public market
-
-This is distinct from a CEX perp (where Binance is the counterparty and the order book holds real positions against each other) or a synthetic debt-pool protocol like Synthetix (where a shared liquidity pool absorbs all risk). ProtoPerps uses a **direct counterparty orderbook model** — every long is matched against a short — but the settlement is fully on-chain, non-custodial, and the underlying asset is synthetic.
-
-### Why private companies?
-
-Private company shares can't be traded publicly. Prestocks tokenizes implied valuations of companies like SpaceX and OpenAI as Solana SPL tokens, creating a discoverable market price. ProtoPerps uses those token prices as the oracle feed, enabling leveraged speculation on private valuations — something impossible on any traditional exchange.
+- **10K+ orders/sec** throughput with sub-millisecond matching latency
+- Real-time market data ingestion over TCP/WebSocket
+- Strategy module event processing pipeline
+- Fault-tolerant order execution — dead letter queue + circuit breaker
+- Live Pyth Network price feeds with staleness detection and TWAP
+- PnL and order book state tracking
+- Web dashboard for real-time order book visualization and PnL tracking
 
 ---
 
-## Markets
+## Tech Stack
 
-| Market | Symbol | Prestocks Token Mint | Fallback Price |
-|--------|--------|----------------------|----------------|
-| SpaceX | SPACEX-PERP | `PreANxuXjsy...` | $732 |
-| OpenAI | OPENAI-PERP | `PreweJYECqt...` | $1,761 |
-| Anthropic | ANTHRP-PERP | `Pren1FvFX6J...` | $1,300 |
-| Anduril | ANDURL-PERP | `PresTj4Yc2b...` | $166 |
-| Polymarket | POLMKT-PERP | `Pre8AREmFPt...` | $180 |
-| Neuralink | NRLNK-PERP | `PrekqLJvJ3q...` | $358 |
-| Kalshi | KALSHI-PERP | `PreLWGkkeqG...` | $554 |
-
-Prices are fetched every 30 seconds from Dexscreener mainnet pools (highest-liquidity Solana pair per mint), clamped to ±9% of the on-chain `previous_price`, and pushed to devnet via the keeper bot.
+| Layer | Technology |
+|-------|------------|
+| Core engine | Rust |
+| API / strategy layer | Python, FastAPI |
+| Message streaming | Kafka |
+| State cache | Redis |
+| Persistence | PostgreSQL |
+| Deployment | AWS EC2 |
 
 ---
 
@@ -53,52 +33,45 @@ Prices are fetched every 30 seconds from Dexscreener mainnet pools (highest-liqu
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Next.js Frontend                           │
-│  Markets page · Trade page · Portfolio page                     │
-│  SWR polling · Solana Wallet Adapter · Anchor client            │
-│  /api/dex/[mint] → Dexscreener proxy (24h%, volume, liquidity)  │
+│                      Web Dashboard                              │
+│  Order book visualization · PnL tracking · Trade interface     │
+│  WebSocket streaming · REST API client                          │
 └────────────────────────┬────────────────────────────────────────┘
                          │ reads / writes
 ┌────────────────────────▼────────────────────────────────────────┐
-│               protoperps program  (Anchor / Rust)               │
+│               FastAPI (Python)                                  │
 │                                                                 │
-│  Market accounts  — zero-copy orderbook (64 bids × 64 asks)     │
-│  Position accounts — per (trader × market), isolated margin     │
-│  MarginAccount PDAs — USDC collateral per wallet                │
+│  Strategy modules  — event processing pipeline                  │
+│  Order management  — submission, cancellation, fills           │
+│  PnL tracking      — real-time position valuation              │
 │                                                                 │
 │  place_order   cancel_order   liquidate                         │
 │  deposit_collateral   withdraw_collateral                       │
 │  update_funding   settle_funding                                │
 └───────────────┬───────────────────────┬─────────────────────────┘
-                │ reads oracle          │ invoked by keeper
+                │ reads price feed      │ publishes / consumes
 ┌───────────────▼──────────┐   ┌────────▼──────────────────────────┐
-│  oracle program           │   │  keeper bot  (TypeScript)         │
-│  (Anchor / Rust)          │   │                                   │
-│                           │   │  oracle.ts    Dexscreener mainnet │
-│  OraclePrice PDAs         │   │               → on-chain push     │
-│  update_price             │   │               every 30 s          │
-│  admin_pause              │   │                                   │
-│  EMA TWAP                 │   │  funding.ts   hourly funding      │
-│  ±10% deviation guard     │   │               rate update         │
-│  5 min → reduce-only      │   │                                   │
-│  15 min → paused          │   │  liquidator.ts scan positions,    │
-│                           │   │               execute liquidations │
+│  Pyth Network             │   │  Kafka                            │
+│  (price oracle)           │   │                                   │
+│                           │   │  market data streams (TCP/WS)     │
+│  Real-time price feeds    │   │  order events                     │
+│  Confidence intervals     │   │  PnL updates                      │
+│  TWAP                     │   │  dead letter queue                │
+│  Staleness detection      │   │                                   │
 └───────────────────────────┘   └───────────────────────────────────┘
 ```
 
 ---
 
-## Program design
+## Matching engine
 
 ### Crankless matching
 
-Every `place_order` call resolves the full trade atomically in the same transaction. There is no external crank, no async settlement queue, no off-chain order routing. The matching engine fills against the on-chain orderbook in price-time priority and settles all positions within the same instruction.
+Every `place_order` call resolves the full trade atomically. There is no external crank, no async settlement queue, no off-chain order routing. The matching engine fills against the in-memory order book in price-time priority and settles all positions within the same operation.
 
-Maker Position PDAs are passed as `remaining_accounts` (up to 5 per transaction), the same pattern used by Phoenix v1.
+### Zero-copy order book
 
-### Zero-copy orderbook
-
-The `Market` account stores `[Order; 64]` bids and `[Order; 64]` asks — 9,424 bytes of orderbook data — using Anchor's `zero_copy` / `bytemuck::Pod` approach. The account is memory-mapped directly; no heap or stack copy is created on deserialisation. This avoids SBF's 4 KB stack frame limit.
+The order book stores `[Order; 64]` bids and `[Order; 64]` asks using a zero-copy, memory-mapped layout. No heap or stack copy is created on deserialisation.
 
 ```
 Order layout (#[repr(C)], 72 bytes, no implicit padding):
@@ -117,7 +90,7 @@ Bids are kept sorted descending by price; asks ascending. Self-trade prevention 
 
 ### Isolated margin
 
-Each position carries its own USDC collateral — no cross-margin in v1. `usdc_locked` in the `MarginAccount` tracks total collateral committed across all open positions.
+Each position carries its own USDC collateral — no cross-margin in v1. `usdc_locked` tracks total collateral committed across all open positions.
 
 ```
 free_collateral = usdc_deposited − usdc_locked
@@ -142,8 +115,8 @@ free_collateral = usdc_deposited − usdc_locked
 | Maintenance margin ratio | 1% |
 | Liquidation reward | 5% of remaining collateral |
 | Collateral | USDC only |
-| Orderbook depth | 64 bids / 64 asks per market |
-| Max fills per tx | 5 (remaining_accounts) |
+| Order book depth | 64 bids / 64 asks per market |
+| Max fills per batch | 5 |
 
 ---
 
@@ -152,24 +125,24 @@ free_collateral = usdc_deposited − usdc_locked
 ### Price feed lifecycle
 
 ```
-Dexscreener mainnet REST API
-  (highest-liquidity Solana pair per Prestocks mint)
-        │ every 30 s
+Pyth Network price feeds
+  (real-time price + confidence interval per market)
+        │ on update
         ▼
-  keeper / oracle.ts
-  · reads on-chain previous_price (byte offset 104 in OraclePrice)
-  · clamps new price to ±9% of previous_price
-  · calls oracle::update_price { price, confidence, source }
+  oracle service (Rust)
+  · reads latest Pyth price
+  · clamps new price to ±9% of previous price
+  · pushes to internal price store
         │
         ▼
-  OraclePrice PDA  (oracle program, devnet)
-  · rejects if |new − previous_price| / previous_price > 10%
+  Price store (Redis)
+  · rejects if |new − previous| / previous > 10%
   · updates EMA TWAP
-  · records slot + timestamp for staleness tracking
+  · records timestamp for staleness tracking
         │
         ▼
-  protoperps::place_order
-  · reads OraclePrice via cross-program zero-copy load
+  matching engine :: place_order
+  · reads current price
   · checks effective status (Active / ReduceOnly / Paused)
   · rejects new orders if not Active
 ```
@@ -197,44 +170,42 @@ Alpha floors at 1% (100 samples). A single outlier price can move the TWAP by at
 diff.saturating_mul(10_000) > previous.saturating_mul(1_000)
 ```
 
-When real prices diverge significantly from the last on-chain price (e.g. after the keeper restarts), the ±9% clamp in the keeper allows gradual convergence over 3–5 ticks (~2.5 minutes) without triggering the on-chain rejection.
+When prices diverge significantly from the last stored price, the ±9% clamp in the feed client allows gradual convergence over 3–5 ticks (~2.5 minutes) without triggering rejection.
 
 ---
 
 ## Funding rate
 
-ProtoPerps uses funding to keep the perp mark price aligned with the oracle (Prestocks token price):
+The funding mechanism keeps the engine's mark price aligned with the oracle (Pyth Network price):
 
 ```
 funding_rate = (mark_price − oracle_price) / oracle_price × (1/24)
 ```
 
-- Computed and pushed on-chain by the keeper every hour
+- Computed and applied hourly
 - **Longs pay shorts** when mark > oracle (perp is at a premium)
 - **Shorts pay longs** when mark < oracle (perp is at a discount)
 - `Market::cumulative_funding_rate` (i64) accumulates the running sum
 - Each position stores `last_funding_rate`; unsettled funding is applied lazily on any position interaction
-
-This is the same mechanism used by BitMEX-style CEX perps, translated entirely on-chain.
 
 ---
 
 ## How a trade works end-to-end
 
 ```
-1. Deposit USDC
-   trader → deposit_collateral → USDC vault
+1. Deposit collateral
+   trader → deposit_collateral
    MarginAccount.usdc_deposited += amount
 
-2. Place order  (e.g. Long SpaceX 0.1 @ market)
+2. Place order  (e.g. Long 0.1 @ market)
    · oracle checked: must be Active
-   · matching engine walks asks, fills up to 5 makers
-   · maker Position PDAs in remaining_accounts updated atomically
+   · matching engine walks asks, fills up to 5 makers per batch
+   · maker positions updated atomically
    · required initial margin (2%) locked from free_collateral
-   · if unfilled: resting limit order inserted into orderbook
+   · if unfilled: resting limit order inserted into order book
 
 3. Position lives
-   · mark price tracked via oracle keeper pushes every 30 s
+   · mark price tracked via Pyth feed updates
    · funding accrues hourly in cumulative_funding_rate
    · unrealized PnL = (mark − entry) × size / LOT_PRECISION
 
@@ -243,7 +214,7 @@ This is the same mechanism used by BitMEX-style CEX perps, translated entirely o
    · fills against resting bids, PnL released, collateral unlocked
 
 5. Withdraw
-   · withdraw_collateral for any free_collateral
+   · withdraw for any free_collateral
 ```
 
 ---
@@ -257,7 +228,7 @@ equity   = collateral + unrealized_pnl
 notional = mark_price × size / LOT_PRECISION
 ```
 
-Any wallet can call `liquidate`. The liquidator:
+Any process can trigger liquidation. The liquidator:
 - Closes the position at mark price
 - Receives 5% of the remaining collateral as a reward
 - Remaining collateral is returned to the trader
@@ -273,20 +244,20 @@ Any wallet can call `liquidate`. The liquidator:
 | `BPS_PRECISION` | 10,000 | 100% = 10,000 bps |
 | `FUNDING_PRECISION` | 1,000,000,000 | 1.0 funding = 1e9 |
 
-All on-chain arithmetic uses `u64` / `i64` fixed-point with explicit checked operations. No floating point anywhere in the programs.
+All arithmetic uses `u64` / `i64` fixed-point with explicit checked operations. No floating point anywhere in the core engine.
 
 ---
 
 ## Account layout (key fields)
 
-### OraclePrice (136 bytes on-chain)
+### Price (136 bytes)
 
 ```
 offset   field                  type
      0   bump / source / status u8 × 3
      3   _pad0                  [u8;5]
-     8   authority              Pubkey (32)
-    40   market                 Pubkey (32)
+     8   authority              [u8;32]
+    40   market                 [u8;32]
     72   price                  u64        ← current price
     80   confidence             u64
     88   twap                   u64        ← EMA
@@ -296,15 +267,15 @@ offset   field                  type
    120   last_update_timestamp  i64        ← staleness computed from this
 ```
 
-### Market (9,432 bytes on-chain)
+### Market
 
-Zero-copy. Holds the full sorted orderbook, market parameters, cumulative funding rate, open interest, and volume.
+Zero-copy. Holds the full sorted order book, market parameters, cumulative funding rate, open interest, and volume.
 
 ### Position
 
 ```
-market          Pubkey
-trader          Pubkey
+market          [u8;32]
+trader          [u8;32]
 side            Long | Short
 size            u64   (LOT_PRECISION)
 entry_price     u64   (PRICE_PRECISION, VWAP)
@@ -315,106 +286,67 @@ realized_pnl    i64
 
 ---
 
-## PDA seeds
-
-| Account | Seeds | Program |
-|---------|-------|---------|
-| Market | `["market", base_symbol_bytes_16]` | protoperps |
-| Position | `["position", market_pubkey, trader_pubkey]` | protoperps |
-| MarginAccount | `["margin", owner_pubkey]` | protoperps |
-| Vault authority | `["vault"]` | protoperps |
-| OraclePrice | `["oracle", market_pubkey]` | oracle |
-
----
-
-## Devnet program IDs
-
-| Program | Address |
-|---------|---------|
-| protoperps | `J65U84LyKvCtv76ynd4MBCfjQqTXLjHvFbpieVqRUjbW` |
-| oracle | `Bk1ao9hgiYxubch1XtrtaWTsYFscMqbH5QnahB6WLMZV` |
-
----
-
 ## Repo structure
 
 ```
-protoperps/
-├── programs/
-│   ├── protoperps/
-│   │   └── src/
-│   │       ├── instructions/
-│   │       │   ├── place_order.rs        # Matching engine + position math
-│   │       │   ├── cancel_order.rs
-│   │       │   ├── deposit_collateral.rs
-│   │       │   ├── withdraw_collateral.rs
-│   │       │   ├── liquidate.rs
-│   │       │   ├── update_funding.rs
-│   │       │   └── settle_funding.rs
-│   │       ├── state/
-│   │       │   ├── market.rs             # Zero-copy Market + Order structs
-│   │       │   ├── position.rs
-│   │       │   └── margin.rs
-│   │       ├── oracle_client.rs          # Cross-program oracle reader
-│   │       └── errors.rs
-│   └── oracle/
-│       └── src/
-│           ├── instructions/
-│           │   ├── initialize_feed.rs
-│           │   ├── update_price.rs       # EMA TWAP + deviation guard
-│           │   └── admin_pause.rs
-│           └── state/oracle_price.rs    # Zero-copy OraclePrice (with unit tests)
+trading-engine/
+├── engine/                       # Rust core
+│   └── src/
+│       ├── matching/
+│       │   ├── place_order.rs    # Matching engine + position math
+│       │   ├── cancel_order.rs
+│       │   └── liquidate.rs
+│       ├── margin/
+│       │   ├── deposit.rs
+│       │   └── withdraw.rs
+│       ├── funding/
+│       │   ├── update_funding.rs
+│       │   └── settle_funding.rs
+│       ├── state/
+│       │   ├── market.rs         # Zero-copy Market + Order structs
+│       │   ├── position.rs
+│       │   └── margin.rs
+│       ├── oracle_client.rs      # Pyth price feed reader
+│       └── errors.rs
+├── api/                          # Python / FastAPI
+│   ├── main.py
+│   ├── routes/
+│   │   ├── orders.py
+│   │   ├── positions.py
+│   │   └── pnl.py
+│   └── strategy/                 # Strategy modules
+│       ├── base.py
+│       └── market_maker.py
+├── infra/
+│   ├── kafka/                    # Topic configs, consumer groups
+│   ├── redis/                    # Cache schemas
+│   └── postgres/                 # Migrations
 ├── keeper/
 │   └── src/
-│       ├── oracle.ts     # Dexscreener → on-chain price push, ±9% clamp
-│       ├── funding.ts    # Hourly funding rate trigger
-│       ├── liquidator.ts # Scan + execute liquidations
-│       ├── mm.ts         # Market-maker bot (devnet liquidity seeding)
-│       └── config.ts     # Markets, mint addresses, PDA helpers
-├── app/
+│       ├── oracle.ts             # Pyth → price store push
+│       ├── funding.ts            # Hourly funding rate trigger
+│       ├── liquidator.ts         # Scan + execute liquidations
+│       └── config.ts             # Market configs
+├── app/                          # Web dashboard
 │   └── src/
 │       ├── app/
-│       │   ├── page.tsx                    # Markets overview
-│       │   ├── trade/[symbol]/page.tsx     # Trade page
-│       │   ├── portfolio/page.tsx
-│       │   └── api/
-│       │       ├── dex/[mint]/route.ts     # Dexscreener proxy (30s edge cache)
-│       │       └── faucet/route.ts         # Devnet USDC faucet
+│       │   ├── page.tsx          # Markets overview
+│       │   ├── trade/[symbol]/page.tsx
+│       │   └── portfolio/page.tsx
 │       ├── components/
 │       │   ├── markets/MarketsTable.tsx
 │       │   └── trade/
 │       │       ├── OrderBook.tsx
 │       │       ├── OrderEntry.tsx
-│       │       ├── PositionsTable.tsx      # Partial close + remainingAccounts
+│       │       ├── PositionsTable.tsx
 │       │       └── PriceChart.tsx
-│       ├── hooks/
-│       │   ├── useOracle.ts      # On-chain oracle (5 s SWR)
-│       │   ├── useMarket.ts      # On-chain market
-│       │   ├── usePosition.ts
-│       │   ├── useDexStats.ts    # 24h %, volume, liquidity (30 s SWR)
-│       │   └── usePrograms.ts
-│       └── lib/
-│           ├── constants.ts      # Program IDs, PDAs, market configs + mints
-│           └── math.ts           # formatPrice, formatCompact, PnL helpers
-├── tests/                        # Integration tests (bankrun)
-├── Anchor.toml
-└── CLAUDE.md                     # Full project spec + build guide
+│       └── hooks/
+│           ├── useOracle.ts
+│           ├── useMarket.ts
+│           ├── usePosition.ts
+│           └── usePnl.ts
+└── tests/
 ```
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| On-chain programs | Anchor 0.32, Rust, Solana SBF |
-| Zero-copy accounts | `bytemuck::Pod`, `AccountLoader` |
-| Keeper bot | TypeScript, `@coral-xyz/anchor`, `@solana/web3.js` |
-| Price source | Dexscreener REST API (mainnet Solana pairs) |
-| Frontend | Next.js 16, Tailwind CSS v4, SWR, Framer Motion |
-| Wallet | `@solana/wallet-adapter-react` (Phantom, Backpack, Solflare) |
-| Deployment | Vercel (frontend), Solana devnet (programs) |
-| Tests | Anchor test framework + bankrun |
 
 ---
 
@@ -424,80 +356,54 @@ protoperps/
 
 ```bash
 rustup update stable
-sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)"   # Solana CLI
-cargo install --git https://github.com/coral-xyz/anchor avm && avm install latest
-node --version   # 18+
+python 3.11+
+docker compose   # for Kafka, Redis, PostgreSQL
 ```
 
-### 1. Build and deploy programs
+### 1. Start infrastructure
 
 ```bash
-anchor build
-anchor deploy --provider.cluster devnet
+docker compose up -d   # Kafka, Redis, PostgreSQL
 ```
 
-After deploy, update program IDs in `Anchor.toml`, `programs/*/src/lib.rs`, and `app/src/lib/constants.ts`.
-
-### 2. Start the keeper
+### 2. Start the engine
 
 ```bash
-cp keeper/.env.example keeper/.env
-# Set KEYPAIR_PATH, RPC_URL, PRICE_PUSH_INTERVAL_MS (default 30000)
+cargo build --release
+./target/release/trading-engine
+```
 
+### 3. Start the API
+
+```bash
+cd api && pip install -r requirements.txt
+uvicorn main:app --reload
+```
+
+### 4. Start the keeper
+
+```bash
 cd keeper && npm install && npm run start
 ```
 
-The keeper runs three services concurrently:
-- **oracle** — fetches Dexscreener prices every 30 s, clamps to ±9%, pushes via `update_price`
-- **funding** — calls `update_funding` once per hour per market
-- **liquidator** — polls positions, calls `liquidate` when maintenance margin is breached
-
-### 3. Start the frontend
+### 5. Start the frontend
 
 ```bash
 cd app && npm install && npm run dev
 # → http://localhost:3000
 ```
 
-Optional `app/.env.local`:
-```
-NEXT_PUBLIC_RPC_URL=https://api.devnet.solana.com
-NEXT_PUBLIC_USDC_MINT=EKdgVqQVivDRiXeQfK2k2Yx1W2BZZdYJ8D1KEaouriEM
-```
-
-### 4. Run integration tests
+### 6. Run tests
 
 ```bash
-anchor test   # uses bankrun for fast local execution, no validator needed
+cargo test
+pytest api/tests/
 ```
-
----
-
-## Frontend data sources
-
-| Data | Source | Refresh |
-|------|--------|---------|
-| Mark price | On-chain OraclePrice PDA | 5 s (SWR) |
-| Orderbook | On-chain Market PDA | 5 s (SWR) |
-| Position | On-chain Position PDA | 5 s (SWR) |
-| 24h %, Volume, Liquidity | `/api/dex/[mint]` → Dexscreener | 30 s (SWR + edge cache) |
-| Funding rate | On-chain Market PDA | 5 s (SWR) |
-
----
-
-## What ProtoPerps is not
-
-- **Not a prediction market** — no outcome resolution, no expiry date
-- **Not a spot exchange** — no real token or share transfers; positions are purely synthetic
-- **Not a debt-pool synthetic** (like Synthetix) — every long is matched against a short in a direct counterparty orderbook, not absorbed by a shared liquidity pool
-- **Not cross-margined** — each position is isolated; one bad trade cannot cascade into others
-- **Not production-ready** — devnet only, not audited
 
 ---
 
 ## Acknowledgements
 
 Architecture inspired by:
-- **[Phoenix v1](https://github.com/Ellipsis-Labs/phoenix-v1)** — crankless on-chain orderbook, zero-copy account design, remaining_accounts fill pattern
+- **[Phoenix v1](https://github.com/Ellipsis-Labs/phoenix-v1)** — crankless order book, zero-copy account design, batch fill pattern
 - **[Drift Protocol v2](https://github.com/drift-labs/protocol-v2)** — funding rate mechanics, oracle staleness escalation, margin system design
-- **[Prestocks](https://prestocks.com)** — pre-IPO token infrastructure providing the underlying price signal
