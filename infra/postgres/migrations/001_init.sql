@@ -17,10 +17,13 @@ CREATE TABLE IF NOT EXISTS positions (
 CREATE TABLE IF NOT EXISTS fills (
     id          BIGSERIAL PRIMARY KEY,
     market      TEXT NOT NULL,
+    taker       TEXT NOT NULL,
     maker       TEXT NOT NULL,
+    taker_side  TEXT NOT NULL DEFAULT 'Long',
     price       BIGINT NOT NULL,
     size        BIGINT NOT NULL,
     maker_seq   BIGINT NOT NULL,
+    realized_pnl BIGINT NOT NULL DEFAULT 0,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -36,5 +39,6 @@ CREATE TABLE IF NOT EXISTS pnl_snapshots (
 
 CREATE INDEX IF NOT EXISTS fills_market_created ON fills (market, created_at DESC);
 CREATE INDEX IF NOT EXISTS fills_maker ON fills (maker, created_at DESC);
+CREATE INDEX IF NOT EXISTS fills_taker ON fills (taker, created_at DESC);
 CREATE INDEX IF NOT EXISTS positions_trader ON positions (trader);
 CREATE INDEX IF NOT EXISTS pnl_trader ON pnl_snapshots (trader, snapshot_at DESC);

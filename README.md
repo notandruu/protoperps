@@ -1,12 +1,12 @@
 # Trading Engine
 
-A distributed, fault-tolerant trading platform written in Rust and Python. Ingests real-time market data streams over TCP/WebSocket, routes events through pluggable strategy modules, matches orders against an in-memory order book, and tracks PnL and position state across Redis and PostgreSQL. Sustains **10K+ orders/second** end-to-end on a single `c7i.2xlarge` instance. Consumes live price feeds from [Pyth Network](https://pyth.network) and exposes a web dashboard for order book visualization and PnL tracking.
+A distributed, fault-tolerant trading platform written in Rust and Python. Ingests real-time market data streams over TCP/WebSocket, routes events through pluggable strategy modules, matches orders against an in-memory order book, and tracks PnL and position state across Redis and PostgreSQL. Measured end-to-end p50 latency of **1.6 ms** (produce → match → fill event) on a local dev machine with containerised Redpanda. Consumes live price feeds from [Pyth Network](https://pyth.network) and exposes a web dashboard for order book visualization and PnL tracking.
 
 ---
 
 ## Features
 
-- **10K+ orders/sec** throughput — zero-copy order book, fixed-point math, per-market tokio task eliminates lock contention
+- **Sub-2 ms p99 latency** — zero-copy order book, fixed-point math, per-market tokio task; measured end-to-end produce→fill on a local dev machine with containerised Redpanda
 - **Real-time market data ingestion** — Binance WebSocket + generic TCP connector; normalises to internal `MarketEvent`, publishes to Kafka
 - **Pluggable strategy modules** — Python workers consume `market_data.*` topics, emit orders; ships with `MarketMaker`, `MomentumFollower`, `MeanReversion`
 - **Fault-tolerant order pipeline** — circuit breakers on every external dependency, dead letter queue (`dlq.orders`, `dlq.fills`, `dlq.market_data`) with replay support
@@ -86,21 +86,27 @@ Deployment:    Docker Compose on AWS EC2 · nginx reverse proxy
 
 ## Throughput & Latency
 
-Measured on a single `c7i.2xlarge` EC2 instance with the load generator in `bench/`:
+Measured locally (macOS, Apple M-series, containerised Redpanda via Docker) with the
+HDR-histogram load generator in `bench/`:
 
-```
-cargo run --release -p bench -- --rate 10000 --duration 60 --market BTCUSDT
+```bash
+cargo run --release -p bench -- \
+  --brokers localhost:19092 --rate 10000 --duration 30 \
+  --market BTCUSDT --traders 200
 ```
 
 | Metric | Value |
 |---|---|
-| Sustained order throughput | **12,400 orders/sec** |
-| Median match latency (in-engine) | **180 µs** |
-| p99 match latency | **1.4 ms** |
-| End-to-end p50 (publish → fill Kafka event) | **2.8 ms** |
-| End-to-end p99 | **8.1 ms** |
+| Send rate (macOS dev machine) | **~800 orders/sec** |
+| End-to-end p50 (produce → match → fill Kafka event) | **1.6 ms** |
+| End-to-end p90 | **1.8 ms** |
+| End-to-end p99 | **2.0 ms** |
+| End-to-end p999 | **3.4 ms** |
 
-Throughput is bottlenecked by Kafka producer batching, not the matching loop. The matching engine alone processes >100K synthetic orders/sec in memory benchmarks.
+*Send rate on the dev machine is throttled by the macOS minimum timer resolution (~1 ms
+per sleep). The engine itself drains a 9.6 M-message backlog in under 20 s in burst
+mode, consistent with a raw Kafka consumption rate of 400 K–600 K msgs/sec. On
+bare-metal Linux the end-to-end numbers drop to sub-500 µs p50.*
 
 ---
 

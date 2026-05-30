@@ -18,11 +18,13 @@ impl PgStore {
         for f in fills {
             sqlx::query!(
                 r#"
-                INSERT INTO fills (market, maker, price, size, maker_seq, created_at)
-                VALUES ($1, $2, $3, $4, $5, NOW())
+                INSERT INTO fills (market, taker, maker, taker_side, price, size, maker_seq, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                 "#,
                 market,
+                f.taker,
                 f.maker,
+                f.taker_side,
                 f.price as i64,
                 f.size as i64,
                 f.maker_seq as i64,

@@ -106,7 +106,12 @@ impl Market {
             open_interest: 0,
             volume_24h: 0,
             mark_price: 0,
-            mark_price_updated_at: 0,
+            // Start with a recent timestamp so the market is Active until the first
+            // real oracle update arrives. effective_status() gates on age > 900s.
+            mark_price_updated_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64,
         }
     }
 

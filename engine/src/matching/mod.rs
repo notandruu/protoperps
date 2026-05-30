@@ -1,7 +1,7 @@
 mod cancel;
 mod liquidate;
-mod place_order;
+pub mod place_order;
 
 pub use cancel::cancel_order;
 pub use liquidate::liquidate;
-pub use place_order::{place_order, PlaceOrderParams};
+pub use place_order::{place_order, Fill, PlaceOrderParams};

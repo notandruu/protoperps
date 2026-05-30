@@ -16,14 +16,19 @@ pub struct PlaceOrderParams {
     pub order_type: OrderType,
     pub price: u64,
     pub size: u64,
+    /// Bench harness timestamp (µs since epoch) — echoed back in FillEvent for latency measurement.
+    #[serde(default)]
+    pub bench_ts_us: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fill {
+    pub taker: String,
     pub maker: String,
     pub price: u64,
     pub size: u64,
     pub maker_seq: u64,
+    pub taker_side: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +76,14 @@ pub fn place_order(
         match match_one(market, params, remaining_size, &params.trader)? {
             Some((maker, price, size, seq)) => {
                 remaining_size -= size;
-                fills.push(Fill { maker, price, size, maker_seq: seq });
+                fills.push(Fill {
+                    taker: params.trader.clone(),
+                    maker,
+                    price,
+                    size,
+                    maker_seq: seq,
+                    taker_side: format!("{:?}", params.side),
+                });
             }
             None => break,
         }

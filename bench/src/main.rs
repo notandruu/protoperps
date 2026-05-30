@@ -57,15 +57,19 @@ struct OrderPayload {
     bench_ts_us: u64, // microsecond timestamp for latency measurement
 }
 
+/// The engine publishes bench_ts_us on FillEvent so we can measure round-trip latency.
 #[derive(Deserialize)]
 struct FillEvent {
     market: String,
+    bench_ts_us: Option<u64>, // echoed back from the order payload
     fills: Vec<FillItem>,
 }
 
 #[derive(Deserialize)]
 struct FillItem {
-    bench_ts_us: Option<u64>,
+    // per-fill fields (price, size, etc.) — we don't need them for latency
+    #[allow(dead_code)]
+    price: Option<u64>,
 }
 
 #[tokio::main]
@@ -105,17 +109,17 @@ async fn main() -> Result<()> {
                 Ok(msg) => {
                     if let Some(p) = msg.payload() {
                         if let Ok(fe) = serde_json::from_slice::<FillEvent>(p) {
-                            for f in fe.fills {
-                                if let Some(sent_us) = f.bench_ts_us {
-                                    let now_us = SystemTime::now()
-                                        .duration_since(UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_micros() as u64;
-                                    let latency_us = now_us.saturating_sub(sent_us);
-                                    let mut h = hist_rx.lock().await;
-                                    let _ = h.record(latency_us);
-                                    fills_rx.fetch_add(1, Ordering::Relaxed);
-                                }
+                            // bench_ts_us is echoed from the original order so we get
+                            // full round-trip latency: produce → engine → fills topic → consumer
+                            if let Some(sent_us) = fe.bench_ts_us {
+                                let now_us = SystemTime::now()
+                                    .duration_since(UNIX_EPOCH)
+                                    .unwrap()
+                                    .as_micros() as u64;
+                                let latency_us = now_us.saturating_sub(sent_us);
+                                let mut h = hist_rx.lock().await;
+                                let _ = h.record(latency_us);
+                                fills_rx.fetch_add(fe.fills.len() as u64, Ordering::Relaxed);
                             }
                         }
                     }
@@ -126,20 +130,24 @@ async fn main() -> Result<()> {
     });
 
     // ── Send loop ─────────────────────────────────────────────────────────────
-    let interval_us = 1_000_000 / args.rate;
+    // rate=0 → burst mode: no sleep, saturate the broker as fast as possible.
+    let interval_us = if args.rate == 0 { 0 } else { 1_000_000 / args.rate };
     let end = Instant::now() + Duration::from_secs(args.duration);
     let mut order_seq: u64 = 0;
 
-    // Alternating bid/ask prices around a simulated $65,000 price
+    // Alternating aggressive bid/ask around a simulated $65,000 price.
+    // Longs buy at mid+1 (cross against any resting ask ≤ mid+1).
+    // Shorts sell at mid-1 (cross against any resting bid ≥ mid-1).
+    // Pattern: each short immediately matches the preceding long's resting bid.
     let base_price: u64 = 65_000 * 1_000_000;
 
     while Instant::now() < end {
         let trader = format!("bench-trader-{}", order_seq % args.traders);
         let side = if order_seq % 2 == 0 { "long" } else { "short" };
         let price = if side == "long" {
-            base_price - 1_000_000 // $1 below mid
+            base_price + 1_000_000 // $1 above mid — aggressive buy, rests as bid
         } else {
-            base_price + 1_000_000 // $1 above mid
+            base_price - 1_000_000 // $1 below mid — aggressive sell, crosses resting bids
         };
 
         let now_us = SystemTime::now()
@@ -166,7 +174,11 @@ async fn main() -> Result<()> {
         sent.fetch_add(1, Ordering::Relaxed);
         order_seq += 1;
 
-        tokio::time::sleep(Duration::from_micros(interval_us)).await;
+        if interval_us > 0 {
+            tokio::time::sleep(Duration::from_micros(interval_us)).await;
+        } else {
+            tokio::task::yield_now().await; // cooperate without blocking
+        }
     }
 
     // Wait a bit for fills to come back
