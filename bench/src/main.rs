@@ -94,14 +94,22 @@ async fn main() -> Result<()> {
     let args = Args::parse();
 
     let burst = args.rate == 0;
-    let orders_per_ms: u64 = if burst { 0 } else { (args.rate / 1000).max(1) };
-    // Actual rate may differ slightly if rate isn't a clean multiple of 1000;
-    // the reported throughput uses actual sent count / elapsed seconds.
-    let effective_rate = orders_per_ms * 1000;
+    // Tick interval and orders-per-tick are derived from the target rate:
+    //   rate >= 1000: tick every 1ms, send (rate/1000) orders per tick
+    //   rate <  1000: tick every (1000/rate)ms, send 1 order per tick
+    // This supports sub-1000/s rates without fractional-ms sleeps.
+    let (tick_ms, orders_per_tick): (u64, u64) = if burst {
+        (1, 0)
+    } else if args.rate >= 1000 {
+        (1, (args.rate / 1000).max(1))
+    } else {
+        ((1000 / args.rate).max(1), 1)
+    };
+    let effective_rate = if burst { 0 } else { orders_per_tick * (1000 / tick_ms) };
 
     info!(
-        "load-gen: target={}/s effective_tick={}/ms duration={}s market={} traders={} burst={}",
-        args.rate, orders_per_ms, args.duration, args.market, args.traders, burst
+        "load-gen: target={}/s tick={}ms orders_per_tick={} duration={}s market={} traders={} burst={}",
+        args.rate, tick_ms, orders_per_tick, args.duration, args.market, args.traders, burst
     );
 
     // ── Producer — batching config ─────────────────────────────────────────────
@@ -173,16 +181,16 @@ async fn main() -> Result<()> {
             tokio::task::yield_now().await;
         }
     } else {
-        // ── Batch-per-tick: 1 ms interval, N orders per tick ─────────────────
+        // ── Batch-per-tick: variable interval, N orders per tick ─────────────
         // MissedTickBehavior::Skip: if a tick fires late (e.g. OS scheduling
         // jitter), skip the missed ticks rather than catching up with a burst.
-        let mut interval = tokio::time::interval(Duration::from_millis(1));
+        let mut interval = tokio::time::interval(Duration::from_millis(tick_ms));
         interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         while Instant::now() < end {
             interval.tick().await;
             let tick_ts = now_us(); // single timestamp for the whole tick batch
-            for _ in 0..orders_per_ms {
+            for _ in 0..orders_per_tick {
                 send_order_ts(&producer, &args.market, order_seq, args.traders, base_price, tick_ts);
                 sent.fetch_add(1, Ordering::Relaxed);
                 order_seq += 1;
@@ -201,7 +209,7 @@ async fn main() -> Result<()> {
 
     println!("\n=== Benchmark Results ===");
     if !burst {
-        println!("Target rate:    {}/s  (effective tick batch: {}/ms)", args.rate, orders_per_ms);
+        println!("Target rate:    {}/s  (tick={}ms × {}/tick = effective {}/s)", args.rate, tick_ms, orders_per_tick, effective_rate);
     }
     println!("Duration:       {}s", args.duration);
     println!("Orders sent:    {total_sent}");
