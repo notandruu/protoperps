@@ -2,8 +2,7 @@
 
 import useSWR from 'swr';
 import { useTrader } from './useTrader';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+import { API_URL } from '@/lib/constants';
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export interface PositionData {

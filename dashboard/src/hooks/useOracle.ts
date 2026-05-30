@@ -1,8 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+import { API_URL } from '@/lib/constants';
 
 export interface OracleData {
   price: number;
@@ -18,9 +17,9 @@ export function useOracle(symbol: string | null) {
     async (url: string) => {
       const data = await fetcher(url);
       return {
-        price: data.price ?? 0,
-        status: 0,
-        lastUpdateTimestamp: Math.floor(Date.now() / 1000),
+        price:              data.price ?? 0,
+        status:             data.status ?? 2,
+        lastUpdateTimestamp: data.last_update_ts ?? 0,
       };
     },
     { refreshInterval: 2000 },

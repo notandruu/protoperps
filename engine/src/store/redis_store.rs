@@ -28,7 +28,14 @@ impl RedisStore {
 
     pub async fn set_mark_price(&mut self, symbol: &str, price: u64) -> Result<()> {
         let key = format!("price:{symbol}");
-        self.conn.set_ex::<_, _, ()>(key, price.to_string(), 30).await?;
+        self.conn.set_ex::<_, _, ()>(&key, price.to_string(), 1200).await?;
+        // Store timestamp so the API can compute staleness / oracle status
+        let ts_key = format!("price_ts:{symbol}");
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        self.conn.set_ex::<_, _, ()>(ts_key, ts.to_string(), 1200).await?;
         Ok(())
     }
 

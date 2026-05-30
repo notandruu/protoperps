@@ -1,8 +1,7 @@
 'use client';
 
 import useSWR from 'swr';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+import { API_URL } from '@/lib/constants';
 
 export interface OrderEntry {
   price: number;
