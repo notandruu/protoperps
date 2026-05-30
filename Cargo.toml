@@ -1,14 +1,25 @@
 [workspace]
-members = [
-    "programs/*"
-]
+members = ["engine", "ingestor", "pyth-consumer", "bench"]
 resolver = "2"
 
+[workspace.dependencies]
+tokio       = { version = "1", features = ["full"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+rdkafka     = { version = "0.36", features = ["cmake-build"] }
+redis       = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+sqlx        = { version = "0.7", features = ["postgres", "runtime-tokio-native-tls", "macros", "time"] }
+tracing     = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+thiserror   = "1"
+anyhow      = "1"
+config      = "0.14"
+clap        = { version = "4", features = ["derive", "env"] }
+time        = { version = "0.3", features = ["serde"] }
+uuid        = { version = "1", features = ["v4", "serde"] }
+
 [profile.release]
+opt-level   = 3
+lto         = "fat"
+codegen-units = 1
 overflow-checks = true
-lto = "fat"
-codegen-units = 1
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1

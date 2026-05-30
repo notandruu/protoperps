@@ -1,8 +1,11 @@
-.anchor
 .DS_Store
-target
+target/
 **/*.rs.bk
-node_modules
-test-ledger
-.yarn
-.surfpool
+node_modules/
+.next/
+__pycache__/
+*.egg-info/
+.env
+*.local
+*.log
+pgdata/

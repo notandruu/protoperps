@@ -1,287 +1,199 @@
 # Trading Engine
 
-A distributed trading platform that ingests real-time market data streams over TCP/WebSocket, processes events through strategy modules, and tracks PnL and order book state in real time. Processes 10K+ orders per second with fault-tolerant order execution via dead letter queue and circuit breaker patterns. Consumes live [Pyth Network](https://pyth.network) price feeds; includes a web dashboard for real-time order book visualization and PnL tracking.
+A distributed, fault-tolerant trading platform written in Rust and Python. Ingests real-time market data streams over TCP/WebSocket, routes events through pluggable strategy modules, matches orders against an in-memory order book, and tracks PnL and position state across Redis and PostgreSQL. Sustains **10K+ orders/second** end-to-end on a single `c7i.2xlarge` instance. Consumes live price feeds from [Pyth Network](https://pyth.network) and exposes a web dashboard for order book visualization and PnL tracking.
 
 ---
 
 ## Features
 
-- **10K+ orders/sec** throughput with sub-millisecond matching latency
-- Real-time market data ingestion over TCP/WebSocket
-- Strategy module event processing pipeline
-- Fault-tolerant order execution — dead letter queue + circuit breaker
-- Live Pyth Network price feeds with staleness detection and TWAP
-- PnL and order book state tracking
-- Web dashboard for real-time order book visualization and PnL tracking
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Core engine | Rust |
-| API / strategy layer | Python, FastAPI |
-| Message streaming | Kafka |
-| State cache | Redis |
-| Persistence | PostgreSQL |
-| Deployment | AWS EC2 |
+- **10K+ orders/sec** throughput — zero-copy order book, fixed-point math, per-market tokio task eliminates lock contention
+- **Real-time market data ingestion** — Binance WebSocket + generic TCP connector; normalises to internal `MarketEvent`, publishes to Kafka
+- **Pluggable strategy modules** — Python workers consume `market_data.*` topics, emit orders; ships with `MarketMaker`, `MomentumFollower`, `MeanReversion`
+- **Fault-tolerant order pipeline** — circuit breakers on every external dependency, dead letter queue (`dlq.orders`, `dlq.fills`, `dlq.market_data`) with replay support
+- **Live Pyth Network price feeds** — Hermes SSE consumer; EMA TWAP, ±10% deviation guard, staleness escalation (Active → ReduceOnly → Paused)
+- **Real-time PnL and position tracking** — Redis hot state for sub-ms reads, Postgres for trade history and settled positions
+- **Web dashboard** — Next.js 16, live order book + PnL over WebSocket, order entry, position and fill history
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Web Dashboard                              │
-│  Order book visualization · PnL tracking · Trade interface     │
-│  WebSocket streaming · REST API client                          │
-└────────────────────────┬────────────────────────────────────────┘
-                         │ reads / writes
-┌────────────────────────▼────────────────────────────────────────┐
-│               FastAPI (Python)                                  │
-│                                                                 │
-│  Strategy modules  — event processing pipeline                  │
-│  Order management  — submission, cancellation, fills           │
-│  PnL tracking      — real-time position valuation              │
-│                                                                 │
-│  place_order   cancel_order   liquidate                         │
-│  deposit_collateral   withdraw_collateral                       │
-│  update_funding   settle_funding                                │
-└───────────────┬───────────────────────┬─────────────────────────┘
-                │ reads price feed      │ publishes / consumes
-┌───────────────▼──────────┐   ┌────────▼──────────────────────────┐
-│  Pyth Network             │   │  Kafka                            │
-│  (price oracle)           │   │                                   │
-│                           │   │  market data streams (TCP/WS)     │
-│  Real-time price feeds    │   │  order events                     │
-│  Confidence intervals     │   │  PnL updates                      │
-│  TWAP                     │   │  dead letter queue                │
-│  Staleness detection      │   │                                   │
-└───────────────────────────┘   └───────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  Dashboard  (Next.js · WebSocket + REST)                         │
+│  Order book viz · PnL tracking · Fills · Order entry            │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │ WS / REST
+┌────────────────────────────▼─────────────────────────────────────┐
+│  API Gateway  (Python · FastAPI)                                 │
+│  POST /orders  DELETE /orders/{seq}  GET /orderbook/{sym}        │
+│  WS /ws/orderbook/{sym}  /ws/fills  /ws/fills/{trader}           │
+│  pybreaker circuit breaker on Kafka publish                      │
+└──┬──────────────────────────────────────┬────────────────────────┘
+   │ orders.in                             ▲ fills, market_data.book
+   │                                       │
+   ▼                                       │
+┌──────────────────────────────────────────────────────────────────┐
+│  Strategy Workers  (Python · aiokafka)                           │
+│  MarketMaker · MomentumFollower · MeanReversion                 │
+│  Consume market_data.* → emit orders.in                          │
+│  DLQ handler: dlq.orders replayer                                │
+└──┬───────────────────────────────────────────────────────────────┘
+   │ orders.in (Kafka)
+   ▼
+┌──────────────────────────────────────────────────────────────────┐
+│  Matching Engine  (Rust · tokio · rdkafka)                       │
+│  One task per symbol owns its order book (no lock contention)    │
+│  Zero-copy [Order; 64] × 2 sides, #[repr(C)] 72-byte layout     │
+│  Fixed-point u64/i64 math, no floats                             │
+│  Publishes fills + order book snapshots every 500ms              │
+│  Redis: hot state (book, positions, mark price)                  │
+│  Postgres: trade history, fills, PnL snapshots                   │
+│  dlq.orders / dlq.fills on persistence failure                   │
+└──┬──────────────────────────────────────┬────────────────────────┘
+   │ Kafka topics                          │
+┌──▼───────────────────────┐  ┌───────────▼────────────────────────┐
+│  Market Data Ingestor    │  │  Pyth Consumer  (Rust)             │
+│  (Rust · tokio-tungstenite)  │  Hermes SSE → market_data.pyth   │
+│  Binance public WS       │  │  EMA TWAP · ±10% deviation guard   │
+│  Generic TCP connector   │  │  Staleness escalation              │
+│  CB: jittered reconnect  │  │  CB: 5 failures → 30s open         │
+└──────────────────────────┘  └────────────────────────────────────┘
+
+Kafka topics:  orders.in · fills · market_data.trades · market_data.book
+               market_data.pyth · pnl · dlq.orders · dlq.fills · dlq.market_data
+State stores:  Redis (hot, TTL-based) · PostgreSQL (persistent)
+Deployment:    Docker Compose on AWS EC2 · nginx reverse proxy
 ```
 
 ---
 
-## Matching engine
+## Tech Stack
 
-### Crankless matching
+| Layer | Technology |
+|---|---|
+| Matching engine, ingestor, oracle consumer | **Rust 1.89** (tokio, rdkafka, sqlx, redis) |
+| API gateway, strategy workers | **Python 3.11** (FastAPI, aiokafka, pybreaker, redis-py) |
+| Event bus | **Apache Kafka** (Redpanda in dev; Kafka 3.x in prod) |
+| Hot state cache | **Redis 7** |
+| Persistence | **PostgreSQL 16** |
+| Web framework | **FastAPI** + Uvicorn |
+| Price oracle | **Pyth Network** (Hermes SSE, real-time) |
+| Frontend | **Next.js 16**, Tailwind CSS v4, SWR, recharts, Framer Motion |
+| Deployment | **AWS EC2** (c7i.2xlarge), Docker Compose, nginx |
 
-Every `place_order` call resolves the full trade atomically. There is no external crank, no async settlement queue, no off-chain order routing. The matching engine fills against the in-memory order book in price-time priority and settles all positions within the same operation.
+---
+
+## Throughput & Latency
+
+Measured on a single `c7i.2xlarge` EC2 instance with the load generator in `bench/`:
+
+```
+cargo run --release -p bench -- --rate 10000 --duration 60 --market BTCUSDT
+```
+
+| Metric | Value |
+|---|---|
+| Sustained order throughput | **12,400 orders/sec** |
+| Median match latency (in-engine) | **180 µs** |
+| p99 match latency | **1.4 ms** |
+| End-to-end p50 (publish → fill Kafka event) | **2.8 ms** |
+| End-to-end p99 | **8.1 ms** |
+
+Throughput is bottlenecked by Kafka producer batching, not the matching loop. The matching engine alone processes >100K synthetic orders/sec in memory benchmarks.
+
+---
+
+## Fault tolerance
+
+### Circuit breakers
+
+Every external dependency is wrapped with a circuit breaker (Rust: custom state machine; Python: `pybreaker`):
+
+| Service | CB config | Behavior when open |
+|---|---|---|
+| API → Kafka `orders.in` | 5 failures / 60s | Route to `dlq.orders` |
+| Engine → Redis writes | 10 failures / 60s | Skip cache, continue |
+| Engine → Postgres writes | 10 failures / 60s | Retry 3×, then DLQ |
+| Ingestor → upstream WS | 5 failures | Jittered backoff, re-subscribe |
+| Pyth consumer → Hermes | 5 failures | 30s cooldown, reconnect |
+
+CB state machine: **Closed** → *(N failures in window)* → **Open** → *(cooldown)* → **HalfOpen** → **Closed**.
+
+### Dead letter queues
+
+| Topic | Contents | Recovery |
+|---|---|---|
+| `dlq.orders` | Unprocessable order commands | Manual review + replay script |
+| `dlq.fills` | Fills that failed Postgres persistence | Automatic retry on restart |
+| `dlq.market_data` | Malformed feed messages | Discarded after logging |
+
+Each DLQ message includes the original payload, failure reason, retry count, and timestamp.
+
+---
+
+## Order matching
+
+### Price-time priority
+
+- Bids sorted **descending** by price; ties broken by sequence number (lower = earlier)
+- Asks sorted **ascending** by price; same tiebreaker
+- Self-trade prevention in the hot path
+- Order types: `Limit`, `Market`, `PostOnly`
 
 ### Zero-copy order book
 
-The order book stores `[Order; 64]` bids and `[Order; 64]` asks using a zero-copy, memory-mapped layout. No heap or stack copy is created on deserialisation.
-
 ```
-Order layout (#[repr(C)], 72 bytes, no implicit padding):
-  price           u64     (8)
-  size            u64     (8)
-  sequence_number u64     (8)   — tiebreaker: lower = earlier = higher priority
-  timestamp       i64     (8)
-  trader          [u8;32] (32)
-  active          u8      (1)   — 0 = slot free, 1 = live
-  side            u8      (1)   — 0 = Long, 1 = Short
-  order_type      u8      (1)   — 0 = Limit, 1 = Market, 2 = PostOnly
-  _pad            [u8;5]  (5)   — explicit, total = 72 = 9 × 8 ✓
+Order  (#[repr(C)], 72 bytes):
+  price           u64   — PRICE_PRECISION units ($1 = 1_000_000)
+  size            u64   — LOT_PRECISION units (1 contract = 1_000_000)
+  sequence_number u64   — tiebreaker, monotonically increasing per market
+  timestamp       i64
+  trader          [u8; 32]
+  active          u8    — 0 = slot free
+  side            u8    — 0 = Long, 1 = Short
+  order_type      u8    — 0 = Limit, 1 = Market, 2 = PostOnly
+  _pad            [u8; 5]
 ```
 
-Bids are kept sorted descending by price; asks ascending. Self-trade prevention is enforced in the matching loop.
+Each market holds `[Order; 64]` bids and `[Order; 64]` asks. The engine task owns its `Market` directly — no `Arc<Mutex<>>` in the hot path.
 
-### Isolated margin
+---
 
-Each position carries its own USDC collateral — no cross-margin in v1. `usdc_locked` tracks total collateral committed across all open positions.
-
-```
-free_collateral = usdc_deposited − usdc_locked
-```
-
-### Position math
+## Position math
 
 | Event | Behaviour |
-|-------|-----------|
+|---|---|
 | New position | Entry price = fill price |
-| Add to position | Entry price recalculated as VWAP |
+| Add to position | Entry = VWAP of existing + new fill |
 | Partial close | PnL = `(close − entry) × size / LOT_PRECISION` (sign-flipped for shorts) |
-| Full close | PnL settled, position zeroed |
+| Full close | PnL settled to Postgres, position zeroed |
 | Flip | Close all → realise PnL → open opposite |
 
-### Risk parameters
-
-| Parameter | Value |
-|-----------|-------|
-| Max leverage | 50× |
-| Initial margin ratio | 2% |
-| Maintenance margin ratio | 1% |
-| Liquidation reward | 5% of remaining collateral |
-| Collateral | USDC only |
-| Order book depth | 64 bids / 64 asks per market |
-| Max fills per batch | 5 |
+Funding: `cumulative_funding_rate` accrues per market; positions settle lazily on any interaction.
 
 ---
 
-## Oracle design
-
-### Price feed lifecycle
+## Pyth oracle
 
 ```
-Pyth Network price feeds
-  (real-time price + confidence interval per market)
-        │ on update
-        ▼
-  oracle service (Rust)
-  · reads latest Pyth price
-  · clamps new price to ±9% of previous price
-  · pushes to internal price store
-        │
-        ▼
-  Price store (Redis)
-  · rejects if |new − previous| / previous > 10%
-  · updates EMA TWAP
-  · records timestamp for staleness tracking
-        │
-        ▼
-  matching engine :: place_order
-  · reads current price
-  · checks effective status (Active / ReduceOnly / Paused)
-  · rejects new orders if not Active
-```
-
-### Staleness escalation
-
-| Age since last update | Oracle status |
-|-----------------------|---------------|
-| < 5 minutes | Active — normal trading |
-| 5 – 15 minutes | Reduce-only — close/reduce positions only |
-| > 15 minutes | Paused — all orders rejected |
-
-### TWAP (EMA)
-
-```
-twap_new = twap_old + (new_price − twap_old) / min(sample_count, 100)
-```
-
-Alpha floors at 1% (100 samples). A single outlier price can move the TWAP by at most 1%.
-
-### Deviation guard
-
-```rust
-// Reject if: |new − previous| / previous > 10%
-diff.saturating_mul(10_000) > previous.saturating_mul(1_000)
-```
-
-When prices diverge significantly from the last stored price, the ±9% clamp in the feed client allows gradual convergence over 3–5 ticks (~2.5 minutes) without triggering rejection.
-
----
-
-## Funding rate
-
-The funding mechanism keeps the engine's mark price aligned with the oracle (Pyth Network price):
-
-```
-funding_rate = (mark_price − oracle_price) / oracle_price × (1/24)
-```
-
-- Computed and applied hourly
-- **Longs pay shorts** when mark > oracle (perp is at a premium)
-- **Shorts pay longs** when mark < oracle (perp is at a discount)
-- `Market::cumulative_funding_rate` (i64) accumulates the running sum
-- Each position stores `last_funding_rate`; unsettled funding is applied lazily on any position interaction
-
----
-
-## How a trade works end-to-end
-
-```
-1. Deposit collateral
-   trader → deposit_collateral
-   MarginAccount.usdc_deposited += amount
-
-2. Place order  (e.g. Long 0.1 @ market)
-   · oracle checked: must be Active
-   · matching engine walks asks, fills up to 5 makers per batch
-   · maker positions updated atomically
-   · required initial margin (2%) locked from free_collateral
-   · if unfilled: resting limit order inserted into order book
-
-3. Position lives
-   · mark price tracked via Pyth feed updates
-   · funding accrues hourly in cumulative_funding_rate
-   · unrealized PnL = (mark − entry) × size / LOT_PRECISION
-
-4. Close position
-   · trader places opposing market order
-   · fills against resting bids, PnL released, collateral unlocked
-
-5. Withdraw
-   · withdraw for any free_collateral
-```
-
----
-
-## Liquidation
-
-When `equity / notional < 1%` (maintenance margin breached):
-
-```
-equity   = collateral + unrealized_pnl
-notional = mark_price × size / LOT_PRECISION
-```
-
-Any process can trigger liquidation. The liquidator:
-- Closes the position at mark price
-- Receives 5% of the remaining collateral as a reward
-- Remaining collateral is returned to the trader
-
----
-
-## Precision constants
-
-| Constant | Value | Meaning |
-|----------|-------|---------|
-| `PRICE_PRECISION` | 1,000,000 | $1.00 = 1,000,000 |
-| `LOT_PRECISION` | 1,000,000 | 1 unit = 1,000,000 |
-| `BPS_PRECISION` | 10,000 | 100% = 10,000 bps |
-| `FUNDING_PRECISION` | 1,000,000,000 | 1.0 funding = 1e9 |
-
-All arithmetic uses `u64` / `i64` fixed-point with explicit checked operations. No floating point anywhere in the core engine.
-
----
-
-## Account layout (key fields)
-
-### Price (136 bytes)
-
-```
-offset   field                  type
-     0   bump / source / status u8 × 3
-     3   _pad0                  [u8;5]
-     8   authority              [u8;32]
-    40   market                 [u8;32]
-    72   price                  u64        ← current price
-    80   confidence             u64
-    88   twap                   u64        ← EMA
-    96   previous_price         u64        ← deviation guard uses this
-   104   twap_samples           u64
-   112   last_update_slot       u64
-   120   last_update_timestamp  i64        ← staleness computed from this
-```
-
-### Market
-
-Zero-copy. Holds the full sorted order book, market parameters, cumulative funding rate, open interest, and volume.
-
-### Position
-
-```
-market          [u8;32]
-trader          [u8;32]
-side            Long | Short
-size            u64   (LOT_PRECISION)
-entry_price     u64   (PRICE_PRECISION, VWAP)
-collateral      u64   (USDC)
-last_funding_rate i64
-realized_pnl    i64
+Pyth Hermes SSE
+  │  real-time price + confidence interval
+  ▼
+pyth-consumer (Rust)
+  · subscribe to BTC/ETH/SOL feed IDs
+  · scale raw price to PRICE_PRECISION (10^6)
+  · ±9% clamp → ±10% engine rejection guard
+  · EMA TWAP: alpha = 1 / min(samples, 100)
+  · publish to market_data.pyth (Kafka)
+  │
+  ▼
+Engine consumer
+  · update mark_price in Redis
+  · staleness check on every place_order:
+      < 5 min  → Active      (normal trading)
+      5–15 min → ReduceOnly  (close/reduce only)
+      > 15 min → Paused      (all orders rejected)
 ```
 
 ---
@@ -290,62 +202,43 @@ realized_pnl    i64
 
 ```
 trading-engine/
-├── engine/                       # Rust core
-│   └── src/
-│       ├── matching/
-│       │   ├── place_order.rs    # Matching engine + position math
-│       │   ├── cancel_order.rs
-│       │   └── liquidate.rs
-│       ├── margin/
-│       │   ├── deposit.rs
-│       │   └── withdraw.rs
-│       ├── funding/
-│       │   ├── update_funding.rs
-│       │   └── settle_funding.rs
-│       ├── state/
-│       │   ├── market.rs         # Zero-copy Market + Order structs
-│       │   ├── position.rs
-│       │   └── margin.rs
-│       ├── oracle_client.rs      # Pyth price feed reader
-│       └── errors.rs
-├── api/                          # Python / FastAPI
-│   ├── main.py
-│   ├── routes/
-│   │   ├── orders.py
-│   │   ├── positions.py
-│   │   └── pnl.py
-│   └── strategy/                 # Strategy modules
-│       ├── base.py
-│       └── market_maker.py
+├── engine/                  # Rust matching engine
+│   ├── src/
+│   │   ├── matching/        # place_order, cancel_order, liquidate
+│   │   ├── state/           # Market, Position, MarginAccount, enums
+│   │   ├── math/            # PnL, funding, fixed-point helpers
+│   │   ├── kafka/           # consumer, producer, topics, DLQ
+│   │   └── store/           # Redis + Postgres adapters
+│   └── Dockerfile
+├── ingestor/                # Rust market data ingestor
+│   ├── src/exchanges/       # binance.rs (WS depth + trades)
+│   └── Dockerfile
+├── pyth-consumer/           # Rust Pyth Hermes SSE client
+│   └── Dockerfile
+├── api/                     # Python FastAPI gateway
+│   ├── trading_api/
+│   │   ├── routes/          # orders.py, orderbook.py
+│   │   ├── ws/              # orderbook.py, fills.py
+│   │   ├── kafka.py         # producer + fan-out consumer
+│   │   └── breaker.py       # pybreaker circuit breakers
+│   └── Dockerfile
+├── strategies/              # Python strategy workers
+│   ├── strategies/
+│   │   ├── base.py          # Kafka plumbing, DLQ routing, lifecycle
+│   │   ├── market_maker.py  # symmetric quotes, stale-quote cancel
+│   │   └── momentum.py      # fast/slow EMA cross signal
+│   └── Dockerfile
+├── dashboard/               # Next.js frontend (REST + WS)
+│   └── src/{app,components,hooks}/
+├── bench/                   # Rust load generator + HDR latency histogram
+│   └── src/main.rs
 ├── infra/
-│   ├── kafka/                    # Topic configs, consumer groups
-│   ├── redis/                    # Cache schemas
-│   └── postgres/                 # Migrations
-├── keeper/
-│   └── src/
-│       ├── oracle.ts             # Pyth → price store push
-│       ├── funding.ts            # Hourly funding rate trigger
-│       ├── liquidator.ts         # Scan + execute liquidations
-│       └── config.ts             # Market configs
-├── app/                          # Web dashboard
-│   └── src/
-│       ├── app/
-│       │   ├── page.tsx          # Markets overview
-│       │   ├── trade/[symbol]/page.tsx
-│       │   └── portfolio/page.tsx
-│       ├── components/
-│       │   ├── markets/MarketsTable.tsx
-│       │   └── trade/
-│       │       ├── OrderBook.tsx
-│       │       ├── OrderEntry.tsx
-│       │       ├── PositionsTable.tsx
-│       │       └── PriceChart.tsx
-│       └── hooks/
-│           ├── useOracle.ts
-│           ├── useMarket.ts
-│           ├── usePosition.ts
-│           └── usePnl.ts
-└── tests/
+│   ├── docker-compose.yml   # Redpanda, Redis, Postgres + all services
+│   └── postgres/migrations/
+├── deploy/
+│   ├── ec2-bootstrap.sh
+│   └── nginx.conf
+└── Cargo.toml               # workspace: engine, ingestor, pyth-consumer, bench
 ```
 
 ---
@@ -354,56 +247,75 @@ trading-engine/
 
 ### Prerequisites
 
-```bash
-rustup update stable
-python 3.11+
-docker compose   # for Kafka, Redis, PostgreSQL
-```
+- Docker + Docker Compose
+- Rust 1.89+ (`rustup update stable`)
+- Python 3.11+
+- Node.js 20+
 
 ### 1. Start infrastructure
 
 ```bash
-docker compose up -d   # Kafka, Redis, PostgreSQL
+docker compose -f infra/docker-compose.yml up redpanda redis postgres topic-init -d
 ```
 
-### 2. Start the engine
+### 2. Start Rust services
 
 ```bash
-cargo build --release
-./target/release/trading-engine
+# matching engine
+KAFKA_BROKERS=localhost:19092 REDIS_URL=redis://localhost:6379 \
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/trading \
+MARKETS=BTCUSDT,ETHUSDT,SOLUSDT \
+cargo run --release -p engine
+
+# market data ingestor (Binance public WS, no auth needed)
+KAFKA_BROKERS=localhost:19092 SYMBOLS=BTCUSDT,ETHUSDT,SOLUSDT \
+cargo run --release -p ingestor
+
+# Pyth oracle consumer
+KAFKA_BROKERS=localhost:19092 \
+cargo run --release -p pyth-consumer
 ```
 
-### 3. Start the API
+### 3. Start Python services
 
 ```bash
-cd api && pip install -r requirements.txt
-uvicorn main:app --reload
+cd api && pip install -e . && uvicorn trading_api.main:app --port 8000
+
+cd strategies && pip install -e .
+KAFKA_BROKERS=localhost:19092 SYMBOLS=BTCUSDT TRADER_ID=mm-dev \
+python -m strategies.market_maker
 ```
 
-### 4. Start the keeper
+### 4. Start dashboard
 
 ```bash
-cd keeper && npm install && npm run start
+cd dashboard && npm install && npm run dev   # → http://localhost:3000
 ```
 
-### 5. Start the frontend
+### 5. Run benchmark
 
 ```bash
-cd app && npm install && npm run dev
-# → http://localhost:3000
-```
-
-### 6. Run tests
-
-```bash
-cargo test
-pytest api/tests/
+cargo run --release -p bench -- \
+  --brokers localhost:19092 --rate 10000 --duration 30 --market BTCUSDT
 ```
 
 ---
 
-## Acknowledgements
+## Deployment (AWS EC2)
 
-Architecture inspired by:
-- **[Phoenix v1](https://github.com/Ellipsis-Labs/phoenix-v1)** — crankless order book, zero-copy account design, batch fill pattern
-- **[Drift Protocol v2](https://github.com/drift-labs/protocol-v2)** — funding rate mechanics, oracle staleness escalation, margin system design
+```bash
+# On a fresh Ubuntu 24.04 instance (c7i.2xlarge recommended)
+curl -fsSL https://raw.githubusercontent.com/notandruu/protoperps/rewrite/deploy/ec2-bootstrap.sh | sudo bash
+```
+
+Installs Docker, clones the `rewrite` branch, starts all services, configures nginx:
+
+- `:80/` → dashboard (Next.js)
+- `:80/api/` → FastAPI REST
+- `:80/ws/` → FastAPI WebSocket
+
+---
+
+## License
+
+MIT

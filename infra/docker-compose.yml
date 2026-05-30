@@ -1,0 +1,176 @@
+version: "3.9"
+
+services:
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+
+  redpanda:
+    image: redpandadata/redpanda:v24.1.13
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda:33145
+      - --advertise-rpc-addr redpanda:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=warn
+    ports:
+      - "19092:19092"   # external Kafka
+      - "18082:18082"   # pandaproxy
+      - "18081:18081"   # schema registry
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  topic-init:
+    image: redpandadata/redpanda:v24.1.13
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: /bin/sh -c
+    command:
+      - |
+        rpk topic create orders.in fills market_data.trades market_data.book market_data.pyth pnl dlq.orders dlq.fills dlq.market_data \
+          --brokers redpanda:9092 \
+          --partitions 4 \
+          --replicas 1
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Services ────────────────────────────────────────────────────────────────
+
+  engine:
+    build:
+      context: ..
+      dockerfile: engine/Dockerfile
+    container_name: engine
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/trading
+      MARKETS: BTCUSDT,ETHUSDT,SOLUSDT
+      RUST_LOG: engine=info
+    restart: unless-stopped
+
+  ingestor:
+    build:
+      context: ..
+      dockerfile: ingestor/Dockerfile
+    container_name: ingestor
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+      RECONNECT_DELAY_MS: "2000"
+      RUST_LOG: ingestor=info
+    restart: unless-stopped
+
+  pyth-consumer:
+    build:
+      context: ..
+      dockerfile: pyth-consumer/Dockerfile
+    container_name: pyth-consumer
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      topic-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      RUST_LOG: pyth_consumer=info
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ../api
+    container_name: api
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/trading
+    restart: unless-stopped
+
+  market-maker:
+    build:
+      context: ../strategies
+    container_name: market-maker
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      SYMBOLS: BTCUSDT,ETHUSDT,SOLUSDT
+      TRADER_ID: mm-1
+      SPREAD_BPS: "5"
+    command: ["python", "-m", "strategies.market_maker"]
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ../dashboard
+    container_name: dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -1,0 +1,17 @@
+[package]
+name    = "ingestor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio            = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+rdkafka          = { workspace = true }
+tracing          = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow           = { workspace = true }
+config           = { workspace = true }
+tokio-tungstenite = { version = "0.23", features = ["native-tls"] }
+futures-util     = "0.3"
+url              = "2"
