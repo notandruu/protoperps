@@ -1,12 +1,12 @@
 # Trading Engine
 
-A distributed, fault-tolerant trading platform written in Rust and Python. Ingests real-time market data streams over TCP/WebSocket, routes events through pluggable strategy modules, matches orders against an in-memory order book, and tracks PnL and position state across Redis and PostgreSQL. Measured end-to-end p50 latency of **1.6 ms** (produce → match → fill event) on a local dev machine with containerised Redpanda. Consumes live price feeds from [Pyth Network](https://pyth.network) and exposes a web dashboard for order book visualization and PnL tracking.
+A distributed, fault-tolerant trading platform written in Rust and Python. Ingests real-time market data streams over TCP/WebSocket, routes events through pluggable strategy modules, matches orders against an in-memory order book, and tracks PnL and position state across Redis and PostgreSQL. Measured **p99 < 5 ms** end-to-end latency (produce → match → fill event) on AWS EC2 with all services co-located. Consumes live price feeds from [Pyth Network](https://pyth.network) and exposes a web dashboard for order book visualization and PnL tracking.
 
 ---
 
 ## Features
 
-- **Sub-2 ms p99 latency** — zero-copy order book, fixed-point math, per-market tokio task; measured end-to-end produce→fill on a local dev machine with containerised Redpanda
+- **p99 < 5 ms end-to-end** (produce → match → fill) — zero-copy order book, fixed-point math, per-market tokio task; measured on AWS EC2 c7i-flex.large with co-located Redpanda
 - **Real-time market data ingestion** — Binance WebSocket + generic TCP connector; normalises to internal `MarketEvent`, publishes to Kafka
 - **Pluggable strategy modules** — Python workers consume `market_data.*` topics, emit orders; ships with `MarketMaker`, `MomentumFollower`, `MeanReversion`
 - **Fault-tolerant order pipeline** — circuit breakers on every external dependency, dead letter queue (`dlq.orders`, `dlq.fills`, `dlq.market_data`) with replay support
@@ -86,27 +86,28 @@ Deployment:    Docker Compose on AWS EC2 · nginx reverse proxy
 
 ## Throughput & Latency
 
-Measured locally (macOS, Apple M-series, containerised Redpanda via Docker) with the
-HDR-histogram load generator in `bench/`:
+Measured on AWS EC2 `c7i-flex.large` (2 vCPU, 4 GB RAM, Linux 6.8.0-aws) with all
+services co-located (engine + Redpanda + Redis + Postgres on the same instance):
 
 ```bash
 cargo run --release -p bench -- \
-  --brokers localhost:19092 --rate 10000 --duration 30 \
+  --brokers localhost:19092 --rate 10000 --duration 60 \
   --market BTCUSDT --traders 200
 ```
 
 | Metric | Value |
 |---|---|
-| Send rate (macOS dev machine) | **~800 orders/sec** |
-| End-to-end p50 (produce → match → fill Kafka event) | **1.6 ms** |
-| End-to-end p90 | **1.8 ms** |
-| End-to-end p99 | **2.0 ms** |
-| End-to-end p999 | **3.4 ms** |
+| Effective send rate (Linux, co-located) | **~870 orders/sec** |
+| End-to-end p50 (produce → match → fill Kafka event) | **1.95 ms** |
+| End-to-end p90 | **2.25 ms** |
+| End-to-end p99 | **4.71 ms** |
+| End-to-end p999 | **7.23 ms** |
 
-*Send rate on the dev machine is throttled by the macOS minimum timer resolution (~1 ms
-per sleep). The engine itself drains a 9.6 M-message backlog in under 20 s in burst
-mode, consistent with a raw Kafka consumption rate of 400 K–600 K msgs/sec. On
-bare-metal Linux the end-to-end numbers drop to sub-500 µs p50.*
+*Send rate is throttled by the minimum timer resolution of the send loop (~1 ms/tick)
+shared across 2 vCPUs with Redpanda, Redis, and Postgres. The engine's Kafka
+consumer drains a 4.3M-message burst in under 60 s when the send loop is
+removed, consistent with ~70K–100K raw orders/sec on this constrained instance.
+Latency p99 < 5 ms includes Redpanda produce + consume round-trip on localhost.*
 
 ---
 

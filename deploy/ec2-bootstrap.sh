@@ -29,7 +29,6 @@ if [ -d "$REPO_DIR/.git" ]; then
 else
   echo "Cloning repo..."
   git clone https://github.com/notandruu/protoperps.git "$REPO_DIR"
-  cd "$REPO_DIR" && git checkout rewrite
 fi
 
 # ── Environment ───────────────────────────────────────────────────────────────
