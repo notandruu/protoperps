@@ -13,18 +13,12 @@ import OpenOrders from '@/components/trade/OpenOrders';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
-import { formatPrice, formatFundingRate, formatCompact, formatChange } from '@/lib/math';
-import { PRICE_PRECISION, LOT_PRECISION } from '@/lib/constants';
-import { useDexStats } from '@/hooks/useDexStats';
+import { formatPrice } from '@/lib/math';
 
 const MARKET_GRAD: Record<string, string> = {
-  SPACEX: 'from-[#005288]',
-  OPENAI: 'from-[#10a37f]',
-  ANTHRP: 'from-[#c96442]',
-  ANDURL: 'from-[#f04e23]',
-  POLMKT: 'from-[#6031b6]',
-  NRLNK:  'from-[#00c7e6]',
-  KALSHI: 'from-[#05c168]',
+  BTCUSDT: 'from-[#f7931a]',
+  ETHUSDT: 'from-[#627eea]',
+  SOLUSDT: 'from-[#9945ff]',
 };
 
 function StatusBadge({ status }: { status: number }) {
@@ -43,7 +37,7 @@ function StatusBadge({ status }: { status: number }) {
       <span className="w-1.5 h-1.5 rounded-full bg-red-500" />Paused
     </span>
   );
-  return <span className="px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground border border-border">Not Deployed</span>;
+  return <span className="px-2 py-0.5 rounded-md text-xs bg-muted text-muted-foreground border border-border">Loading</span>;
 }
 
 function Stat({ label, value, valueClass = '' }: { label: string; value: string; valueClass?: string }) {
@@ -55,7 +49,6 @@ function Stat({ label, value, valueClass = '' }: { label: string; value: string;
   );
 }
 
-// Panel with reference gradient border
 function GradPanel({ gradFrom, children, className = '', style }: { gradFrom: string; children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   return (
     <div className={cn('relative rounded-lg p-[1px] bg-border group', className)} style={style}>
@@ -66,9 +59,7 @@ function GradPanel({ gradFrom, children, className = '', style }: { gradFrom: st
           WebkitMaskImage: 'linear-gradient(135deg, black 0%, transparent 50%)',
         }}
       />
-      <div className="relative rounded-lg bg-card h-full">
-        {children}
-      </div>
+      <div className="relative rounded-lg bg-card h-full">{children}</div>
     </div>
   );
 }
@@ -86,24 +77,24 @@ export default function TradePage() {
   const symbol = (params.symbol as string).toUpperCase();
   const market = getMarketBySymbol(symbol);
 
-  const { data: oracle } = useOracle(market?.marketPubkey ?? null);
-  const { data: marketData, mutate: refreshMarket } = useMarket(market?.marketPubkey ?? null);
-  const { data: position, mutate: refreshPosition } = usePosition(market?.marketPubkey ?? null);
-  const { data: dex } = useDexStats(market?.tokenMint ?? null);
+  const { data: oracle } = useOracle(symbol);
+  const { data: marketData, mutate: refreshMarket } = useMarket(symbol);
+  const { data: position, mutate: refreshPosition } = usePosition(symbol);
 
   const oracleStatus = effectiveOracleStatus(oracle);
   const markPrice = oracle?.price ?? 0;
-  const fundingRate = marketData?.cumulativeFundingRate ?? 0;
-  const openInterest = marketData?.openInterest ?? 0;
-  const oiUsd = openInterest > 0 && markPrice > 0
-    ? (openInterest / LOT_PRECISION) * (markPrice / PRICE_PRECISION)
-    : 0;
+  const fundingRate = 0; // funded by engine, not exposed in snapshot
+  const openInterest = (marketData?.bids?.length ?? 0) + (marketData?.asks?.length ?? 0); // level count proxy
 
   const [bottomTab, setBottomTab] = useState<'position' | 'orders'>('position');
   const gradFrom = MARKET_GRAD[symbol] ?? 'from-violet-500';
 
   if (!market) {
-    return <div className="flex items-center justify-center h-64 text-muted-foreground">Market &ldquo;{symbol}&rdquo; not found.</div>;
+    return (
+      <div className="flex items-center justify-center h-64 text-muted-foreground">
+        Market &ldquo;{symbol}&rdquo; not found.
+      </div>
+    );
   }
 
   return (
@@ -111,7 +102,6 @@ export default function TradePage() {
 
       {/* Market header */}
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Identity */}
         <div className="flex items-center gap-3">
           <CompanyLogo symbol={symbol} size={40} />
           <div>
@@ -121,68 +111,37 @@ export default function TradePage() {
         </div>
 
         <StatusBadge status={oracleStatus} />
-
-        {/* Divider */}
         <div className="hidden sm:block h-8 w-px bg-border mx-1" />
 
-        {/* Stats */}
         <div className="flex items-center gap-6 flex-wrap">
-          <Stat label="Mark Price" value={formatPrice(markPrice)} />
+          <Stat label="Mark Price" value={markPrice > 0 ? formatPrice(markPrice) : '—'} />
           <div className="hidden sm:block h-6 w-px bg-border" />
-          <Stat
-            label="Funding / 1h"
-            value={formatFundingRate(fundingRate)}
-            valueClass={fundingRate > 0 ? 'text-emerald-500' : fundingRate < 0 ? 'text-red-500' : 'text-muted-foreground'}
-          />
+          <Stat label="Oracle" value="Pyth Network" valueClass="text-muted-foreground" />
           <div className="hidden sm:block h-6 w-px bg-border" />
-          <Stat
-            label="Open Interest"
-            value={oiUsd > 0 ? `$${oiUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '$0'}
-          />
-          <div className="hidden sm:block h-6 w-px bg-border" />
-          <Stat
-            label="24h %"
-            value={dex ? formatChange(dex.change24h) : '—'}
-            valueClass={dex ? (dex.change24h >= 0 ? 'text-emerald-500' : 'text-red-500') : ''}
-          />
-          <div className="hidden sm:block h-6 w-px bg-border" />
-          <Stat
-            label="Volume 24h"
-            value={dex ? formatCompact(dex.volume24h) : '—'}
-          />
-          <div className="hidden sm:block h-6 w-px bg-border" />
-          <Stat
-            label="Liquidity"
-            value={dex ? formatCompact(dex.liquidity) : '—'}
-          />
+          <Stat label="Book Levels" value={String(openInterest)} />
         </div>
       </div>
 
       {/* Main grid */}
       <div className="grid grid-cols-12 gap-4">
 
-        {/* Chart */}
         <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8">
           <PanelHeader title="Price Chart" />
           <div className="p-2">
-            <PriceChart oracle={oracle} symbol={symbol} fundingRate={fundingRate} change24h={dex?.change24h} />
+            <PriceChart oracle={oracle} symbol={symbol} fundingRate={fundingRate} />
           </div>
         </GradPanel>
 
-        {/* Order entry */}
         <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4">
           <PanelHeader title="Place Order" />
-          <OrderEntry marketPubkey={market.marketPubkey} marketData={marketData} markPrice={markPrice} />
+          <OrderEntry symbol={symbol} marketData={marketData} markPrice={markPrice} />
         </GradPanel>
 
-        {/* Orderbook */}
         <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-4">
           <OrderBook market={marketData} markPrice={markPrice} />
         </GradPanel>
 
-        {/* Positions / Open Orders */}
         <GradPanel gradFrom={gradFrom} className="col-span-12 lg:col-span-8">
-          {/* Tab header */}
           <div className="px-4 py-2.5 border-b border-border flex items-center gap-4">
             {(['position', 'orders'] as const).map(tab => (
               <button
@@ -190,28 +149,22 @@ export default function TradePage() {
                 onClick={() => setBottomTab(tab)}
                 className={cn(
                   'text-xs font-semibold uppercase tracking-wider transition-colors',
-                  bottomTab === tab
-                    ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground',
+                  bottomTab === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                {tab === 'position' ? 'My Position' : 'Open Orders'}
+                {tab === 'position' ? 'My Position' : 'Cancel Order'}
               </button>
             ))}
           </div>
           {bottomTab === 'position' ? (
             <PositionsTable
-              marketPubkey={market.marketPubkey}
+              symbol={symbol}
               position={position}
               markPrice={markPrice}
-              marketData={marketData}
               onClose={() => { refreshPosition(); refreshMarket(); }}
             />
           ) : (
-            <OpenOrders
-              marketPubkey={market.marketPubkey}
-              onCancel={() => refreshMarket()}
-            />
+            <OpenOrders symbol={symbol} onCancel={() => refreshMarket()} />
           )}
         </GradPanel>
 

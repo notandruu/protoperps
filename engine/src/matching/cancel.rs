@@ -7,7 +7,7 @@ pub fn cancel_order(
     trader: &str,
     sequence_number: u64,
 ) -> Result<u64, EngineError> {
-    let trader_bytes = super::place_order::trader_bytes(trader);
+    let trader_bytes = super::place_order::trader_to_bytes(trader);
 
     // Check bids
     for i in 0..market.num_bids {

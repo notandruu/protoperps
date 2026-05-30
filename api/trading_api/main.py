@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .kafka import start_consumers
-from .routes import orders, orderbook
+from .routes import orders, orderbook, positions
 from .ws import fills, orderbook as ws_orderbook
 
 app = FastAPI(title="Trading Engine API", version="0.1.0")
@@ -18,6 +18,7 @@ app.add_middleware(
 
 app.include_router(orders.router)
 app.include_router(orderbook.router)
+app.include_router(positions.router)
 app.include_router(ws_orderbook.router)
 app.include_router(fills.router)
 

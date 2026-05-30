@@ -10,10 +10,9 @@ import { TrendingUp } from 'lucide-react';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { useOracle } from '@/hooks/useOracle';
 
-
 function PositionRow({ pos }: { pos: PositionData }) {
-  const market = MARKETS.find(m => m.marketPubkey.toBase58() === pos.market.toBase58());
-  const { data: oracle } = useOracle(market?.marketPubkey ?? null);
+  const market = MARKETS.find(m => m.symbol === pos.market);
+  const { data: oracle } = useOracle(pos.market);
   const markPrice = oracle?.price ?? 0;
 
   const upnl = markPrice > 0
@@ -22,64 +21,49 @@ function PositionRow({ pos }: { pos: PositionData }) {
 
   return (
     <tr className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-      {/* Market */}
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <CompanyLogo symbol={market?.symbol ?? ''} size={32} />
+          <CompanyLogo symbol={pos.market} size={32} />
           <div>
-            <div className="text-sm font-medium text-foreground">{market?.name ?? 'Unknown'}</div>
-            <div className="text-xs text-muted-foreground font-mono mt-0.5">{market?.symbol}-PERP</div>
+            <div className="text-sm font-medium text-foreground">{market?.name ?? pos.market}</div>
+            <div className="text-xs text-muted-foreground font-mono mt-0.5">{pos.market}-PERP</div>
           </div>
         </div>
       </td>
 
-      {/* Side */}
       <td className="px-5 py-4">
         <span className={cn(
           'px-2.5 py-1 rounded text-xs font-medium border',
           pos.side === 'long'
             ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-            : 'bg-red-500/10 text-red-500 border-red-500/20'
+            : 'bg-red-500/10 text-red-500 border-red-500/20',
         )}>
           {pos.side === 'long' ? 'Long' : 'Short'}
         </span>
       </td>
 
-      {/* Size */}
       <td className="px-5 py-4 text-right font-mono text-sm text-foreground tabular-nums">
         {formatSize(pos.size)}
       </td>
-
-      {/* Entry Price */}
       <td className="px-5 py-4 text-right font-mono text-sm text-foreground tabular-nums">
         {formatPrice(pos.entryPrice)}
       </td>
-
-      {/* Mark Price */}
       <td className="px-5 py-4 text-right font-mono text-sm text-muted-foreground tabular-nums">
         {markPrice > 0 ? formatPrice(markPrice) : '—'}
       </td>
-
-      {/* Unrealized PnL */}
       <td className={cn(
         'px-5 py-4 text-right font-mono text-sm font-medium tabular-nums',
-        upnl === null ? 'text-muted-foreground' : pnlClass(upnl)
+        upnl === null ? 'text-muted-foreground' : pnlClass(upnl),
       )}>
         {upnl === null ? '—' : formatPnl(upnl)}
       </td>
-
-      {/* Collateral */}
       <td className="px-5 py-4 text-right font-mono text-sm text-muted-foreground tabular-nums">
         {formatPrice(pos.collateral)}
       </td>
-
-      {/* Action */}
       <td className="px-5 py-4 text-right">
         {market?.symbol && (
           <Link href={`/trade/${market.symbol}`}>
-            <Button variant="outline" size="sm" className="h-7 text-xs">
-              Trade →
-            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs">Trade →</Button>
           </Link>
         )}
       </td>
@@ -97,7 +81,7 @@ export default function PositionHistory() {
           <div className="h-4 w-32 bg-muted rounded animate-pulse" />
         </div>
         <div className="divide-y divide-border">
-          {[1,2,3].map(i => (
+          {[1, 2, 3].map(i => (
             <div key={i} className="px-6 py-4 flex gap-4 animate-pulse">
               <div className="h-4 w-24 bg-muted rounded" />
               <div className="h-4 w-16 bg-muted rounded" />
@@ -126,9 +110,7 @@ export default function PositionHistory() {
       {openPositions.length === 0 ? (
         <div className="px-6 py-12 text-center">
           <p className="text-muted-foreground text-sm mb-4">No open positions.</p>
-          <Link href="/">
-            <Button variant="outline" size="sm">Browse Markets →</Button>
-          </Link>
+          <Link href="/"><Button variant="outline" size="sm">Browse Markets →</Button></Link>
         </div>
       ) : (
         <div className="overflow-x-auto hide-scrollbar">
@@ -146,8 +128,8 @@ export default function PositionHistory() {
               </tr>
             </thead>
             <tbody>
-              {openPositions.map(pos => (
-                <PositionRow key={pos.pubkey.toBase58()} pos={pos} />
+              {openPositions.map((pos, i) => (
+                <PositionRow key={`${pos.market}-${i}`} pos={pos} />
               ))}
             </tbody>
           </table>

@@ -369,7 +369,7 @@ fn average_fill_price(fills: &[Fill]) -> u64 {
     if total_size == 0 { 0 } else { (total_notional / total_size) as u64 }
 }
 
-fn trader_to_bytes(s: &str) -> [u8; 32] {
+pub fn trader_to_bytes(s: &str) -> [u8; 32] {
     let mut out = [0u8; 32];
     let b = s.as_bytes();
     let len = b.len().min(32);

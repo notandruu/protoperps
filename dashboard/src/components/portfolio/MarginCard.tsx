@@ -1,22 +1,21 @@
 'use client';
 
-import { useMarginAccount } from '@/hooks/useMarginAccount';
-import { formatUsdc } from '@/lib/math';
+import { useTrader } from '@/hooks/useTrader';
+import { useAllPositions } from '@/hooks/usePosition';
+import { PRICE_PRECISION } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Wallet } from 'lucide-react';
 
 export default function MarginCard() {
-  const { data: margin, isLoading } = useMarginAccount();
+  const { traderId } = useTrader();
+  const { data: positions, isLoading } = useAllPositions();
 
-  const deposited = margin?.usdcDeposited ?? 0;
-  const locked = margin?.usdcLocked ?? 0;
-  const free = margin?.free ?? 0;
-  const utilizationPct = deposited > 0 ? (locked / deposited) * 100 : 0;
+  const open = (positions ?? []).filter(p => p.size > 0);
+  const totalCollateral = open.reduce((s, p) => s + p.collateral, 0);
+  const totalRealizedPnl = (positions ?? []).reduce((s, p) => s + p.realizedPnl, 0);
+  const totalNotional = open.reduce((s, p) => s + p.size, 0); // raw lots
 
-  const barColor =
-    utilizationPct > 80 ? 'bg-red-500' :
-    utilizationPct > 50 ? 'bg-yellow-500' :
-    'bg-emerald-500';
+  const pnlPositive = totalRealizedPnl >= 0;
 
   return (
     <div className="relative rounded-lg p-[1px] bg-border h-full">
@@ -30,55 +29,48 @@ export default function MarginCard() {
       <div className="relative rounded-lg bg-card p-6 h-full">
         <div className="flex items-center gap-2 mb-5">
           <Wallet className="h-4 w-4 text-emerald-500" />
-          <h2 className="text-sm font-semibold text-foreground">Margin Account</h2>
+          <h2 className="text-sm font-semibold text-foreground">Trading Account</h2>
+          {traderId && (
+            <span className="ml-auto font-mono text-xs text-muted-foreground truncate max-w-[140px]">
+              {traderId}
+            </span>
+          )}
         </div>
 
-        {isLoading ? (
+        {!traderId ? (
+          <p className="text-muted-foreground text-sm">Set a trader ID in the header to track your account.</p>
+        ) : isLoading ? (
           <div className="grid grid-cols-3 gap-6 animate-pulse">
-            {[1,2,3].map(i => (
+            {[1, 2, 3].map(i => (
               <div key={i}>
                 <div className="h-3 w-16 bg-muted rounded mb-2" />
                 <div className="h-7 w-24 bg-muted rounded" />
               </div>
             ))}
           </div>
-        ) : margin === null ? (
-          <p className="text-muted-foreground text-sm">No margin account yet. Deposit USDC to get started.</p>
         ) : (
-          <>
-            <div className="grid grid-cols-3 gap-6 mb-6">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Total Balance</div>
-                <div className="text-2xl font-mono font-bold text-foreground tabular-nums">{formatUsdc(deposited)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Free Margin</div>
-                <div className="text-2xl font-mono font-bold text-emerald-500 tabular-nums">{formatUsdc(free)}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">Used Margin</div>
-                <div className="text-2xl font-mono font-bold text-foreground tabular-nums">{formatUsdc(locked)}</div>
-              </div>
-            </div>
-
+          <div className="grid grid-cols-3 gap-6">
             <div>
-              <div className="flex justify-between text-xs text-muted-foreground mb-2">
-                <span>Margin Utilization</span>
-                <span className={cn(
-                  'font-mono',
-                  utilizationPct > 80 ? 'text-red-500' :
-                  utilizationPct > 50 ? 'text-yellow-500' :
-                  'text-emerald-500'
-                )}>{utilizationPct.toFixed(1)}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                <div
-                  className={cn('h-full rounded-full transition-all duration-500', barColor)}
-                  style={{ width: `${Math.min(100, utilizationPct)}%` }}
-                />
+              <div className="text-xs text-muted-foreground mb-1">Open Positions</div>
+              <div className="text-2xl font-mono font-bold text-foreground tabular-nums">{open.length}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Total Collateral</div>
+              <div className="text-2xl font-mono font-bold text-foreground tabular-nums">
+                ${(totalCollateral / PRICE_PRECISION).toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </div>
             </div>
-          </>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Realized PnL</div>
+              <div className={cn(
+                'text-2xl font-mono font-bold tabular-nums',
+                pnlPositive ? 'text-emerald-500' : 'text-red-500',
+              )}>
+                {pnlPositive ? '+' : ''}
+                ${Math.abs(totalRealizedPnl / PRICE_PRECISION).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -5,33 +5,21 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const SYMBOL_TO_DOMAIN: Record<string, string> = {
-  SPACEX: 'spacex.com',
-  OPENAI: 'openai.com',
-  ANTHRP: 'anthropic.com',
-  ANDURL: 'anduril.com',
-  POLMKT: 'polymarket.com',
-  NRLNK:  'neuralink.com',
-  KALSHI: 'kalshi.com',
+  BTCUSDT: 'bitcoin.org',
+  ETHUSDT: 'ethereum.org',
+  SOLUSDT: 'solana.com',
 };
 
 const SYMBOL_TO_INITIALS: Record<string, string> = {
-  SPACEX: 'SX',
-  OPENAI: 'OA',
-  ANTHRP: 'AN',
-  ANDURL: 'AD',
-  POLMKT: 'PM',
-  NRLNK:  'NL',
-  KALSHI: 'KA',
+  BTCUSDT: 'BTC',
+  ETHUSDT: 'ETH',
+  SOLUSDT: 'SOL',
 };
 
 const SYMBOL_TO_ACCENT: Record<string, string> = {
-  SPACEX: 'bg-[#005288]/15 text-[#4d9ec4] border-[#005288]/25',
-  OPENAI: 'bg-[#10a37f]/15 text-[#10a37f] border-[#10a37f]/25',
-  ANTHRP: 'bg-[#c96442]/15 text-[#c96442] border-[#c96442]/25',
-  ANDURL: 'bg-[#f04e23]/15 text-[#f04e23] border-[#f04e23]/25',
-  POLMKT: 'bg-[#6031b6]/15 text-[#9b6ddb] border-[#6031b6]/25',
-  NRLNK:  'bg-[#00c7e6]/15 text-[#00c7e6] border-[#00c7e6]/25',
-  KALSHI: 'bg-[#05c168]/15 text-[#05c168] border-[#05c168]/25',
+  BTCUSDT: 'bg-[#f7931a]/15 text-[#f7931a] border-[#f7931a]/25',
+  ETHUSDT: 'bg-[#627eea]/15 text-[#627eea] border-[#627eea]/25',
+  SOLUSDT: 'bg-[#9945ff]/15 text-[#9945ff] border-[#9945ff]/25',
 };
 
 interface CompanyLogoProps {

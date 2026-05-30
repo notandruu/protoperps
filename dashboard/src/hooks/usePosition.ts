@@ -1,97 +1,56 @@
 'use client';
 
 import useSWR from 'swr';
-import { PublicKey } from '@solana/web3.js';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { usePrograms } from './usePrograms';
-import { positionPda } from '@/lib/constants';
+import { useTrader } from './useTrader';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+const fetcher = (url: string) => fetch(url).then(r => r.json());
 
 export interface PositionData {
-  pubkey: PublicKey;
-  market: PublicKey;
-  trader: PublicKey;
+  market: string;
   side: 'long' | 'short';
   size: number;
   entryPrice: number;
   collateral: number;
   realizedPnl: number;
-  lastFundingRate: number;
 }
 
-export function usePosition(marketPubkey: PublicKey | null) {
-  const { publicKey } = useWallet();
-  const { program } = usePrograms();
+function mapRow(p: Record<string, unknown>): PositionData {
+  return {
+    market:      String(p.market ?? ''),
+    side:        (p.side as 'long' | 'short') ?? 'long',
+    size:        Number(p.size ?? 0),
+    entryPrice:  Number(p.entry_price ?? 0),
+    collateral:  Number(p.collateral ?? 0),
+    realizedPnl: Number(p.realized_pnl ?? 0),
+  };
+}
+
+/** Single market position for the current trader. */
+export function usePosition(symbol: string | null) {
+  const { traderId } = useTrader();
 
   return useSWR<PositionData | null>(
-    program && marketPubkey && publicKey
-      ? ['position', marketPubkey.toBase58(), publicKey.toBase58()]
-      : null,
-    async () => {
-      try {
-        const pda = positionPda(marketPubkey!, publicKey!);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pos = await (program!.account as any).position.fetch(pda);
-        const side: 'long' | 'short' = pos.side?.long !== undefined ? 'long' : 'short';
-        return {
-          pubkey: pda,
-          market: pos.market as PublicKey,
-          trader: pos.trader as PublicKey,
-          side,
-          size: Number(pos.size?.toString() ?? 0),
-          entryPrice: Number(pos.entryPrice?.toString() ?? pos.entry_price?.toString() ?? 0),
-          collateral: Number(pos.collateral?.toString() ?? 0),
-          realizedPnl: Number(pos.realizedPnl?.toString() ?? pos.realized_pnl?.toString() ?? 0),
-          lastFundingRate: Number(pos.lastFundingRate?.toString() ?? pos.last_funding_rate?.toString() ?? 0),
-        };
-      } catch {
-        return null;
-      }
+    traderId && symbol ? `${API_URL}/positions/${traderId}/${symbol}` : null,
+    async (url: string) => {
+      const data = await fetcher(url);
+      if (!data || Number(data.size ?? 0) === 0) return null;
+      return mapRow(data);
     },
-    { refreshInterval: 5000 },
+    { refreshInterval: 3000 },
   );
 }
 
-/** Fetch all positions across all markets for the connected wallet. */
+/** All open positions across every market for the current trader. */
 export function useAllPositions() {
-  const { publicKey } = useWallet();
-  const { program } = usePrograms();
+  const { traderId } = useTrader();
 
   return useSWR<PositionData[]>(
-    program && publicKey ? ['all-positions', publicKey.toBase58()] : null,
-    async () => {
-      try {
-        const filters = [
-          {
-            memcmp: {
-              offset: 41, // trader pubkey at offset 41: 8 (discriminator) + 1 (bump) + 32 (market)
-              bytes: publicKey!.toBase58(),
-            },
-          },
-        ];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const accounts = await (program!.account as any).position.all(filters);
-        return accounts
-          .map(({ publicKey: pk, account }: { publicKey: PublicKey; account: Record<string, unknown> }) => {
-            const size = Number(account.size?.toString() ?? 0);
-            if (size === 0) return null;
-            const side: 'long' | 'short' =
-              (account.side as Record<string, unknown>)?.long !== undefined ? 'long' : 'short';
-            return {
-              pubkey: pk,
-              market: account.market as PublicKey,
-              trader: account.trader as PublicKey,
-              side,
-              size,
-              entryPrice: Number(account.entryPrice?.toString() ?? account.entry_price?.toString() ?? 0),
-              collateral: Number(account.collateral?.toString() ?? 0),
-              realizedPnl: Number(account.realizedPnl?.toString() ?? account.realized_pnl?.toString() ?? 0),
-              lastFundingRate: Number(account.lastFundingRate?.toString() ?? account.last_funding_rate?.toString() ?? 0),
-            } as PositionData;
-          })
-          .filter(Boolean) as PositionData[];
-      } catch {
-        return [];
-      }
+    traderId ? `${API_URL}/positions/${traderId}` : null,
+    async (url: string) => {
+      const data = await fetcher(url);
+      if (!Array.isArray(data)) return [];
+      return (data as Record<string, unknown>[]).map(mapRow).filter(p => p.size > 0);
     },
     { refreshInterval: 5000 },
   );

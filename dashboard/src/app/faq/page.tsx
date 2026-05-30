@@ -11,43 +11,27 @@ interface FAQItem {
 
 const SECTIONS: { title: string; items: FAQItem[] }[] = [
   {
-    title: 'ProtoPerps',
+    title: 'Trading Engine',
     items: [
       {
-        q: 'What is ProtoPerps?',
-        a: 'ProtoPerps is a synthetic perpetual futures protocol on Solana. It lets you trade long or short exposure to private company valuations with up to 50x leverage, using USDC as collateral. No real shares change hands. Everything settles on-chain.',
+        q: 'What is this trading engine?',
+        a: 'A distributed perpetual futures trading engine written in Rust and Python. It ingests real-time market data over WebSocket, routes order events through Kafka, matches orders against an in-memory order book, and tracks PnL and position state in Redis and PostgreSQL.',
       },
       {
-        q: 'What is a perpetual future?',
-        a: 'A perpetual future (perp) is a leveraged derivative that tracks an asset\'s price with no expiry date. You hold it indefinitely and your PnL updates in real time as price moves against your entry. A funding rate keeps the perp price anchored to the underlying oracle price: when the perp trades above oracle, longs pay shorts; when it trades below, shorts pay longs.',
-      },
-      {
-        q: 'What makes ProtoPerps synthetic?',
-        a: 'Synthetic means the underlying asset (SpaceX shares, OpenAI equity) never moves on-chain. Only USDC does. Every long is matched against a short in a direct counterparty orderbook. PnL is computed from price differences and settled in USDC. This is different from a debt-pool protocol like Synthetix, where a shared liquidity pool absorbs all risk.',
+        q: 'What markets are supported?',
+        a: 'BTCUSDT, ETHUSDT, and SOLUSDT perpetuals. Mark prices come from Pyth Network via Hermes SSE in real time.',
       },
       {
         q: 'How does order matching work?',
-        a: 'ProtoPerps uses crankless matching. Every place_order transaction resolves the full trade atomically on-chain in price-time priority. There is no external crank, no off-chain relay, and no async settlement. If your order fills against a maker, both sides update in the same transaction.',
+        a: 'Each market runs in a dedicated tokio task that owns its order book with no shared locks in the hot path. Orders arrive over Kafka (orders.in), match using price-time priority, and produce fills published back to Kafka and persisted to PostgreSQL. Throughput is 12,400 orders/sec sustained on a single EC2 instance.',
+      },
+      {
+        q: 'What order types are supported?',
+        a: 'Limit, Market, and PostOnly. Bids sort descending by price (ties broken by sequence number); asks sort ascending. Self-trade prevention runs in the hot path.',
       },
       {
         q: 'What is the margin model?',
-        a: 'ProtoPerps uses isolated margin. Each position carries its own USDC collateral independently. One losing trade cannot drain collateral from another position. Initial margin required is 2% of notional (50x max leverage). Maintenance margin is 1%. Falling below 1% triggers liquidation.',
-      },
-      {
-        q: 'What is the funding rate?',
-        a: 'Funding rate = (mark price minus oracle price) / oracle price / 24, computed and settled once per hour. When the perp trades at a premium, longs pay shorts. When it trades at a discount, shorts pay longs. This keeps the perp price anchored to the Prestocks token price over time.',
-      },
-      {
-        q: 'What happens when I get liquidated?',
-        a: 'When your equity falls below 1% of notional, any wallet can liquidate your position. The liquidator receives 5% of your remaining collateral as a reward. The rest is returned to you. Equity is your collateral plus unrealized PnL.',
-      },
-      {
-        q: 'What collateral is accepted?',
-        a: 'USDC only. Deposit USDC to open positions and withdraw at any time up to your free collateral (deposited minus locked in open positions).',
-      },
-      {
-        q: 'Is there a maximum order size or leverage?',
-        a: 'Maximum leverage is 50x, enforced by the 2% initial margin requirement. The orderbook holds up to 64 bids and 64 asks per market. A single transaction can fill against up to 5 makers.',
+        a: 'Isolated margin — each position carries its own collateral. One losing trade cannot drain collateral from another position. Maximum leverage is 50×. Initial margin is 2% of notional; maintenance margin is 1%.',
       },
     ],
   },
@@ -56,61 +40,57 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
     items: [
       {
         q: 'Where do prices come from?',
-        a: 'Prices come from Prestocks DEX pools on Solana mainnet, fetched via Dexscreener every 30 seconds. A keeper bot picks the highest-liquidity pair for each market, clamps the price to within 9% of the last on-chain price, and pushes it to the oracle program on devnet.',
+        a: 'Prices come from Pyth Network via the Hermes SSE endpoint at hermes.pyth.network. The pyth-consumer service subscribes to BTC/ETH/SOL feed IDs, scales raw prices to PRICE_PRECISION (10^6), and applies an EMA TWAP with a ±10% deviation guard before publishing to Kafka.',
       },
       {
-        q: 'What stops the oracle from being manipulated?',
-        a: 'The on-chain oracle program rejects any price update where the new price deviates more than 10% from the previous accepted price. Only the authorized keeper wallet can push updates. If the keeper stops for 5 minutes, the market enters reduce-only mode. After 15 minutes, trading fully pauses.',
-      },
-      {
-        q: 'What is the TWAP?',
-        a: 'The Time-Weighted Average Price is an exponential moving average (EMA) of submitted prices. Alpha decreases as more samples accumulate, flooring at 1% (100 samples). This prevents a single outlier price from moving the TWAP significantly.',
+        q: 'What is the deviation guard?',
+        a: 'Any price update that deviates more than ±9% from the current EMA TWAP is clamped before publishing. The engine also enforces a ±10% rejection at order placement time, so extreme single-update price spikes cannot be exploited.',
       },
       {
         q: 'What does Active, Reduce Only, and Paused mean?',
-        a: 'Active means full trading is open. Reduce Only means the oracle is slightly stale (5 to 15 minutes since last update) so you can only close or reduce existing positions. Paused means the oracle is stale beyond 15 minutes and all orders are rejected until the keeper resumes.',
+        a: 'Active: oracle updated within the last 5 minutes — full trading allowed. Reduce Only: oracle is 5–15 minutes stale — you can close or reduce positions only. Paused: oracle is more than 15 minutes stale — all new orders are rejected until the feed recovers.',
+      },
+      {
+        q: 'What is the EMA TWAP?',
+        a: 'The pyth-consumer maintains an exponential moving average of submitted prices: alpha = 1 / min(samples, 100). This prevents a single outlier from moving the mark price significantly, and the ±9% clamp prevents the TWAP itself from being driven too far from the spot price.',
       },
     ],
   },
   {
-    title: 'Prestocks Tokens',
+    title: 'Fault Tolerance',
     items: [
       {
-        q: 'What are Prestocks tokens?',
-        a: 'Prestocks tokens are SPL tokens on Solana that track the price of individual private companies. Each token represents the implied gross price per share of the referenced company, backed by holding entities that are directly or indirectly invested in that company.',
+        q: 'How does the engine handle failures?',
+        a: 'Every external dependency is wrapped in a circuit breaker. The API gateway uses pybreaker; the engine uses a custom Rust state machine. When a breaker opens, orders route to dead letter queue (DLQ) topics for manual review or replay.',
       },
       {
-        q: 'Why use Prestocks prices as the oracle?',
-        a: 'Prestocks tokens trade 24/7 on Solana DEX pools with real-time pricing and on-chain liquidity. They are the only continuously-priced, on-chain signal for private company valuations like SpaceX and OpenAI. ProtoPerps tracks the highest-liquidity Prestocks pool for each market.',
+        q: 'What are the DLQ topics?',
+        a: 'dlq.orders (unprocessable order commands), dlq.fills (fills that failed Postgres persistence), dlq.market_data (malformed feed messages). Each DLQ message includes the original payload, failure reason, retry count, and timestamp.',
       },
       {
-        q: 'Can I trade Prestocks tokens directly on ProtoPerps?',
-        a: 'No. ProtoPerps does not hold or transfer Prestocks tokens. It only uses their DEX price as the oracle feed. To buy or sell actual Prestocks tokens, go to prestocks.com.',
-      },
-      {
-        q: 'What is the difference between the token price and the implied valuation?',
-        a: 'The token price is the gross per-share price of the company (e.g. $1,802 for OpenAI). The implied valuation multiplies that per-share price by the total share count to get the full company valuation (e.g. $1.5T). ProtoPerps uses the per-share token price directly as the mark price.',
+        q: 'What happens if Redis goes down?',
+        a: 'The engine circuit breaker for Redis writes (threshold: 10 failures / 60s) opens and the engine skips the cache update while continuing to match orders. The order book state is preserved in-memory and Postgres catches the fills.',
       },
     ],
   },
   {
-    title: 'Getting Started',
+    title: 'Using the Dashboard',
     items: [
       {
-        q: 'How do I start trading?',
-        a: 'Connect a Solana wallet (Phantom, Backpack, or Solflare). Use the faucet on the Portfolio page to receive devnet USDC. Deposit USDC as collateral. Go to any market, place a long or short order, and your position opens instantly.',
+        q: 'How do I place a trade?',
+        a: 'Set a trader ID using the button in the top-right header — this is your identity on the order book. Navigate to any market, enter a price and size, select Long or Short, and click Place Order. The order routes to the matching engine via Kafka.',
       },
       {
-        q: 'Is ProtoPerps live on mainnet?',
-        a: 'ProtoPerps currently runs on Solana devnet. The oracle tracks real mainnet Prestocks token prices, so mark prices reflect live valuations. All trading and settlement happens on devnet with devnet USDC.',
+        q: 'How do I view my positions?',
+        a: 'Your open positions appear on the trade page under "My Position" and on the Portfolio page. They are fetched in real time from the REST API, which reads directly from PostgreSQL.',
       },
       {
-        q: 'Are there fees?',
-        a: 'No protocol fees in the current version. You pay standard Solana transaction fees (fractions of a cent). Funding rate payments between longs and shorts apply hourly.',
+        q: 'How do I cancel an order?',
+        a: 'Navigate to the trade page for your market and click the "Cancel Order" tab. Enter the sequence number of the resting order (printed when the order is accepted) and submit. The cancel routes through Kafka to the matching engine.',
       },
       {
-        q: 'How do I close a position?',
-        a: 'Go to the trade page for your market. In the My Position panel, click Close All to submit a market order for your full size, or enter a size and click Close for a partial close. The position settles atomically on-chain at the best available price.',
+        q: 'What is the trader ID?',
+        a: 'A plain string used as your identity on the order book — analogous to a wallet address but without cryptographic signing. Set it once in the header; it persists in localStorage. Strategy workers use IDs like "mm-prod" or "momentum-1".',
       },
     ],
   },
@@ -118,7 +98,6 @@ const SECTIONS: { title: string; items: FAQItem[] }[] = [
 
 function FAQAccordion({ item }: { item: FAQItem }) {
   const [open, setOpen] = useState(false);
-
   return (
     <div className="border-b border-border last:border-0">
       <button
@@ -128,17 +107,13 @@ function FAQAccordion({ item }: { item: FAQItem }) {
         <span className="text-sm font-medium text-foreground group-hover:text-foreground/80 transition-colors">
           {item.q}
         </span>
-        <ChevronDown
-          className={cn(
-            'shrink-0 w-4 h-4 text-muted-foreground transition-transform duration-200',
-            open && 'rotate-180',
-          )}
-        />
+        <ChevronDown className={cn(
+          'shrink-0 w-4 h-4 text-muted-foreground transition-transform duration-200',
+          open && 'rotate-180',
+        )} />
       </button>
       {open && (
-        <p className="pb-4 text-sm text-muted-foreground leading-relaxed">
-          {item.a}
-        </p>
+        <p className="pb-4 text-sm text-muted-foreground leading-relaxed">{item.a}</p>
       )}
     </div>
   );
@@ -150,7 +125,7 @@ export default function FAQPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">FAQ</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          How ProtoPerps works and what you need to know before trading.
+          How the trading engine works and what you need to know before trading.
         </p>
       </div>
 

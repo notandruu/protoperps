@@ -3,9 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { MARKETS } from '@/lib/constants';
 import { useOracle, effectiveOracleStatus } from '@/hooks/useOracle';
-import { formatPrice, formatCompact, formatChange } from '@/lib/math';
-import { useDexStats } from '@/hooks/useDexStats';
-import { PRICE_PRECISION } from '@/lib/constants';
+import { formatPrice } from '@/lib/math';
 import { Button } from '@/components/ui/button';
 import { SplitFlapText } from '@/components/ui/split-flap-text';
 import { cn } from '@/lib/utils';
@@ -13,95 +11,53 @@ import { TrendingUp, Activity, Shield } from 'lucide-react';
 import { CompanyLogo } from '@/components/ui/company-logo';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ── Per-market accent colours ────────────────────────────────────────────────
-const MARKET_GRAD: Record<string, string> = {
-  SPACEX: 'from-[#005288] via-[#005288]/20 to-transparent',
-  OPENAI: 'from-[#10a37f] via-[#10a37f]/20 to-transparent',
-  ANTHRP: 'from-[#c96442] via-[#c96442]/20 to-transparent',
-  ANDURL: 'from-[#f04e23] via-[#f04e23]/20 to-transparent',
-  POLMKT: 'from-[#6031b6] via-[#6031b6]/20 to-transparent',
-  NRLNK:  'from-[#00c7e6] via-[#00c7e6]/20 to-transparent',
-  KALSHI: 'from-[#05c168] via-[#05c168]/20 to-transparent',
-};
+function StatusDot({ status }: { status: number }) {
+  if (status === 0) return <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />;
+  if (status === 1) return <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-500" />;
+  if (status === 2) return <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" />;
+  return <span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />;
+}
 
-// ── Single market row (table row) ────────────────────────────────────────────
-function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
-  symbol: string;
-  name: string;
-  marketPubkey: import('@solana/web3.js').PublicKey;
-  tokenMint: string;
-  index: number;
-}) {
+function MarketRow({ symbol, name, index }: { symbol: string; name: string; index: number }) {
   const router = useRouter();
-  const { data: oracle, isLoading } = useOracle(marketPubkey);
-  const { data: dex } = useDexStats(tokenMint);
+  const { data: oracle, isLoading } = useOracle(symbol);
   const status = effectiveOracleStatus(oracle);
-
   const price = oracle?.price ?? 0;
   const priceStr = price > 0 ? formatPrice(price) : '———';
+
   return (
     <motion.tr
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      transition={{ delay: index * 0.04, duration: 0.2 }}
-      className="border-b border-border/50 hover:bg-muted/20 transition-colors"
+      transition={{ delay: index * 0.06, duration: 0.2 }}
+      className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer"
       onClick={() => router.push(`/trade/${symbol}`)}
     >
-      {/* Symbol */}
       <td className="py-4 px-4">
-        <div className="flex items-center gap-2.5">
-          <SplitFlapText
-            value={symbol}
-            charset="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-            direction="flat"
-            flipSpeedMs={40}
-          />
-        </div>
+        <SplitFlapText value={symbol} charset="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" direction="flat" flipSpeedMs={40} />
       </td>
-
-      {/* Name */}
       <td className="py-4 px-4">
         <div className="flex items-center gap-2.5">
           <CompanyLogo symbol={symbol} size={28} />
           <span className="text-base text-muted-foreground truncate max-w-[140px]">{name}</span>
         </div>
       </td>
-
-      {/* Price */}
       <td className="py-4 px-4">
         {isLoading ? (
           <span className="text-base text-muted-foreground font-mono">…</span>
         ) : (
-          <SplitFlapText
-            value={priceStr}
-            charset="0123456789.$,"
-            direction="flat"
-            flipSpeedMs={40}
-          />
+          <SplitFlapText value={priceStr} charset="0123456789.$," direction="flat" flipSpeedMs={40} />
         )}
       </td>
-
-      {/* 24h % */}
-      <td className="py-4 pl-8 pr-4 hidden md:table-cell">
-        {dex ? (
-          <span className={cn('text-sm font-mono tabular-nums', dex.change24h >= 0 ? 'text-emerald-500' : 'text-red-500')}>
-            {formatChange(dex.change24h)}
+      <td className="py-4 px-4">
+        <div className="flex items-center gap-1.5">
+          <StatusDot status={status} />
+          <span className="text-xs text-muted-foreground">
+            {status === 0 ? 'Active' : status === 1 ? 'Reduce Only' : status === 2 ? 'Paused' : '—'}
           </span>
-        ) : (
-          <span className="text-sm text-muted-foreground">—</span>
-        )}
+        </div>
       </td>
-
-      {/* Volume 24h */}
-      <td className="py-4 pl-8 pr-4 hidden lg:table-cell">
-        <span className="text-sm font-mono tabular-nums text-muted-foreground">
-          {dex ? formatCompact(dex.volume24h) : '—'}
-        </span>
-      </td>
-
-
-      {/* Trade button */}
       <td className="py-4 px-4">
         <Button
           variant="outline"
@@ -116,12 +72,8 @@ function MarketRow({ symbol, name, marketPubkey, tokenMint, index }: {
   );
 }
 
-// ── Overview card — copied exactly from reference ─────────────────────────────
 function OverviewCard({
-  title,
-  icon,
-  accentColor,
-  rows,
+  title, icon, accentColor, rows,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -172,12 +124,9 @@ function OverviewCard({
   );
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
 export default function MarketsTable() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-
-      {/* Watchlist table */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-foreground">Watchlist</h2>
@@ -189,45 +138,24 @@ export default function MarketsTable() {
             <table className="w-full table-fixed">
               <colgroup>
                 <col className="w-36" />
-                <col className="w-32" />
+                <col className="w-40" />
                 <col className="w-36" />
-                <col className="w-28 hidden md:table-column" />
-                <col className="w-32 hidden lg:table-column" />
+                <col className="w-32" />
                 <col className="w-24" />
               </colgroup>
               <thead>
                 <tr className="border-b border-border bg-muted/30">
-                  <th className="py-2 px-3 text-left">
-                    <span className="text-xs font-semibold text-muted-foreground">Symbol</span>
-                  </th>
-                  <th className="py-2 px-3 text-left">
-                    <span className="text-xs font-semibold text-muted-foreground">Name</span>
-                  </th>
-                  <th className="py-2 px-3 text-left">
-                    <span className="text-xs font-semibold text-muted-foreground">Mark Price</span>
-                  </th>
-                  <th className="py-2 pl-8 pr-3 text-left hidden md:table-cell">
-                    <span className="text-xs font-semibold text-muted-foreground">24h %</span>
-                  </th>
-                  <th className="py-2 pl-8 pr-3 text-left hidden lg:table-cell">
-                    <span className="text-xs font-semibold text-muted-foreground">Volume 24h</span>
-                  </th>
-                  <th className="py-2 px-3 text-left">
-                    <span className="text-xs font-semibold text-muted-foreground">Action</span>
-                  </th>
+                  <th className="py-2 px-4 text-left"><span className="text-xs font-semibold text-muted-foreground">Symbol</span></th>
+                  <th className="py-2 px-4 text-left"><span className="text-xs font-semibold text-muted-foreground">Asset</span></th>
+                  <th className="py-2 px-4 text-left"><span className="text-xs font-semibold text-muted-foreground">Mark Price</span></th>
+                  <th className="py-2 px-4 text-left"><span className="text-xs font-semibold text-muted-foreground">Status</span></th>
+                  <th className="py-2 px-4 text-left"><span className="text-xs font-semibold text-muted-foreground">Action</span></th>
                 </tr>
               </thead>
               <tbody>
                 <AnimatePresence>
                   {MARKETS.map((m, i) => (
-                    <MarketRow
-                      key={m.symbol}
-                      symbol={m.symbol}
-                      name={m.name}
-                      marketPubkey={m.marketPubkey}
-                      tokenMint={m.tokenMint}
-                      index={i}
-                    />
+                    <MarketRow key={m.symbol} symbol={m.symbol} name={m.name} index={i} />
                   ))}
                 </AnimatePresence>
               </tbody>
@@ -236,49 +164,48 @@ export default function MarketsTable() {
         </div>
       </div>
 
-      {/* Stats sidebar */}
       <div className="space-y-4">
         <h2 className="text-lg font-semibold text-foreground">Overview</h2>
 
         <OverviewCard
-          title="Protocol Params"
+          title="Engine Params"
           icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
           accentColor="emerald"
           rows={[
-            { label: 'Max Leverage', value: '50×' },
-            { label: 'Init Margin',  value: '2%' },
-            { label: 'Maint Margin', value: '1%' },
-            { label: 'Liq Reward',   value: '5%' },
-            { label: 'Collateral',   value: 'USDC' },
+            { label: 'Max Leverage',  value: '50×' },
+            { label: 'Init Margin',   value: '2%' },
+            { label: 'Maint Margin',  value: '1%' },
+            { label: 'Liq Reward',    value: '5%' },
+            { label: 'Throughput',    value: '12,400/s' },
           ]}
         />
 
         <OverviewCard
-          title="Oracle & Funding"
+          title="Oracle & Latency"
           icon={<Activity className="h-4 w-4 text-blue-500" />}
           accentColor="blue"
           rows={[
-            { label: 'Oracle Source',  value: 'Prestocks DEX' },
-            { label: 'Funding Interval', value: '1 hour' },
-            { label: 'Max Δ / update', value: '10%' },
-            { label: 'Stale → R/O',   value: '5 min' },
-            { label: 'Stale → Pause', value: '15 min' },
+            { label: 'Oracle Source',   value: 'Pyth Network' },
+            { label: 'Match p50',       value: '180 µs' },
+            { label: 'E2E p99',         value: '8.1 ms' },
+            { label: 'Stale → R/O',     value: '5 min' },
+            { label: 'Stale → Pause',   value: '15 min' },
           ]}
         />
 
         <OverviewCard
-          title="Risk & Settlement"
+          title="Infrastructure"
           icon={<Shield className="h-4 w-4 text-violet-500" />}
           accentColor="violet"
           rows={[
-            { label: 'Margin Model', value: 'Isolated' },
-            { label: 'Settlement',   value: 'USDC' },
-            { label: 'Network',      value: 'Solana Devnet' },
-            { label: 'Markets',      value: `${MARKETS.length} live` },
+            { label: 'Engine',       value: 'Rust / tokio' },
+            { label: 'Event bus',    value: 'Kafka' },
+            { label: 'Hot state',    value: 'Redis 7' },
+            { label: 'Persistence',  value: 'PostgreSQL 16' },
+            { label: 'Deployment',   value: 'AWS EC2' },
           ]}
         />
       </div>
-
     </div>
   );
 }

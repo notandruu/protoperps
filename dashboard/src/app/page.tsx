@@ -6,7 +6,7 @@ export default function MarketsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Markets</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Synthetic perpetuals on private company valuations. All prices sourced from Prestocks DEX pools.
+          Live perpetuals on BTC, ETH, and SOL — prices sourced from Pyth Network.
         </p>
       </div>
       <MarketsTable />

@@ -1,74 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
-import { BN } from '@coral-xyz/anchor';
-import { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction } from '@solana/spl-token';
-import { usePrograms } from '@/hooks/usePrograms';
-import { USDC_MINT, marginPda, vaultAuthorityPda, PRICE_PRECISION } from '@/lib/constants';
+import { useTrader } from '@/hooks/useTrader';
+import { useAllPositions } from '@/hooks/usePosition';
+import { PRICE_PRECISION } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { ArrowDownToLine, ArrowUpFromLine } from 'lucide-react';
-
-const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-const SYSTEM_PROGRAM_ID = new PublicKey('11111111111111111111111111111111');
-
-type Tab = 'deposit' | 'withdraw';
+import { Activity } from 'lucide-react';
 
 export default function DepositWithdraw() {
-  const { publicKey } = useWallet();
-  const { program, connection } = usePrograms();
-  const [tab, setTab] = useState<Tab>('deposit');
-  const [amount, setAmount] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [txSig, setTxSig] = useState('');
+  const { traderId } = useTrader();
+  const { data: positions } = useAllPositions();
 
-  const handleSubmit = useCallback(async () => {
-    if (!publicKey || !program || !amount) return;
-    setError(''); setTxSig(''); setSubmitting(true);
-    try {
-      const rawAmount = new BN(Math.round(parseFloat(amount) * PRICE_PRECISION));
-      if (rawAmount.isZero() || rawAmount.isNeg()) throw new Error('Amount must be positive');
-
-      const marginAccountPda = marginPda(publicKey);
-      const userUsdc = getAssociatedTokenAddressSync(USDC_MINT, publicKey);
-      const vaultAuth = vaultAuthorityPda();
-      const vault = getAssociatedTokenAddressSync(USDC_MINT, vaultAuth, true);
-
-      const preInstructions = [];
-      const ataInfo = await connection.getAccountInfo(userUsdc);
-      if (!ataInfo) {
-        preInstructions.push(createAssociatedTokenAccountInstruction(publicKey, userUsdc, publicKey, USDC_MINT));
-      }
-
-      let sig: string;
-      if (tab === 'deposit') {
-        sig = await program.methods.depositCollateral(rawAmount)
-          .accounts({ owner: publicKey, marginAccount: marginAccountPda, userUsdc, vaultAuthority: vaultAuth, vault, usdcMint: USDC_MINT, tokenProgram: TOKEN_PROGRAM_ID, associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID, systemProgram: SYSTEM_PROGRAM_ID } as any)
-          .preInstructions(preInstructions).rpc();
-      } else {
-        sig = await program.methods.withdrawCollateral(rawAmount)
-          .accounts({ owner: publicKey, marginAccount: marginAccountPda, userUsdc, vaultAuthority: vaultAuth, vault, usdcMint: USDC_MINT, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SYSTEM_PROGRAM_ID } as any)
-          .rpc();
-      }
-      setTxSig(sig); setAmount('');
-    } catch (err) {
-      setError((err instanceof Error ? err.message : String(err)).slice(0, 200));
-    } finally {
-      setSubmitting(false);
-    }
-  }, [publicKey, program, tab, amount, connection]);
-
-  if (!publicKey) {
-    return (
-      <div className="rounded-lg border border-border bg-card p-5 text-center text-muted-foreground text-sm py-8">
-        Connect wallet to deposit or withdraw
-      </div>
-    );
-  }
+  const totalRealizedPnl = (positions ?? []).reduce((s, p) => s + p.realizedPnl, 0);
+  const openCount = (positions ?? []).filter(p => p.size > 0).length;
 
   return (
     <div className="relative rounded-lg p-[1px] bg-border">
@@ -80,69 +24,42 @@ export default function DepositWithdraw() {
         }}
       />
       <div className="relative rounded-lg bg-card p-5">
-
-        {/* Tabs */}
-        <div className="flex rounded-lg overflow-hidden border border-border mb-5">
-          {(['deposit', 'withdraw'] as Tab[]).map(t => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); setError(''); setTxSig(''); }}
-              className={cn(
-                'flex-1 py-2 text-sm capitalize transition-colors flex items-center justify-center gap-1.5',
-                tab === t ? 'bg-muted text-foreground font-medium' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t === 'deposit'
-                ? <ArrowDownToLine className="h-3.5 w-3.5" />
-                : <ArrowUpFromLine className="h-3.5 w-3.5" />}
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-violet-500" />
+          <h2 className="text-sm font-semibold text-foreground">Account</h2>
         </div>
 
-        {/* Amount input */}
-        <div className="mb-4">
-          <label className="block text-xs text-muted-foreground mb-1.5">Amount (USDC)</label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">$</span>
-            <input
-              type="number"
-              value={amount}
-              onChange={e => setAmount(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              className="w-full bg-muted border border-border rounded-lg pl-7 pr-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring font-mono"
-            />
+        <div className="space-y-3">
+          <div>
+            <div className="text-xs text-muted-foreground mb-1">Trader ID</div>
+            <div className={cn(
+              'font-mono text-sm truncate',
+              traderId ? 'text-foreground' : 'text-muted-foreground italic'
+            )}>
+              {traderId || 'not set'}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Open Positions</div>
+              <div className="font-mono text-sm text-foreground">{openCount}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Realized PnL</div>
+              <div className={cn(
+                'font-mono text-sm',
+                totalRealizedPnl > 0 ? 'text-emerald-500' : totalRealizedPnl < 0 ? 'text-red-500' : 'text-muted-foreground'
+              )}>
+                {totalRealizedPnl >= 0 ? '+' : ''}
+                {(totalRealizedPnl / PRICE_PRECISION).toFixed(2)}
+              </div>
+            </div>
           </div>
         </div>
 
-        {error && (
-          <div className="mb-3 text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-            {error}
-          </div>
-        )}
-        {txSig && (
-          <div className="mb-3 text-xs text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-            Success!{' '}
-            <a href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="underline">
-              View tx →
-            </a>
-          </div>
-        )}
-
-        <Button
-          onClick={handleSubmit}
-          disabled={submitting || !amount || parseFloat(amount) <= 0}
-          className="w-full"
-        >
-          {submitting
-            ? (tab === 'deposit' ? 'Depositing…' : 'Withdrawing…')
-            : (tab === 'deposit' ? 'Deposit USDC' : 'Withdraw USDC')}
-        </Button>
-
-        <p className="mt-3 text-xs text-muted-foreground text-center">
-          Devnet USDC only — use the faucet above to get test funds.
+        <p className="mt-4 text-xs text-muted-foreground">
+          Collateral is tracked per-position. Each position carries its own USDC collateral independently.
         </p>
       </div>
     </div>
